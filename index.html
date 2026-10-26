@@ -101,9 +101,9 @@ main { flex: 1; padding: 18px 16px calc(28px + env(safe-area-inset-bottom, 0px))
 
 /* buttons */
 .btn { min-height: var(--tap); padding: 10px 18px; border-radius: var(--radius); border: 1.5px solid var(--charcoal); background: #fff; color: var(--ink); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-.btn.primary { background: var(--brand); border-color: var(--brand-deep); color: #1E2A1C; }
-.btn.primary:hover { background: var(--brand-deep); }
-.btn.primary:active { background: var(--green); color: #fff; }
+.btn.primary { background: var(--green); border-color: var(--green-deep); color: #fff; }
+.btn.primary:hover { background: var(--green-deep); }
+.btn.primary:active { background: #2F5C2A; }
 .btn.green { background: var(--green); border-color: var(--green-deep); color: #fff; }
 .btn.danger { border-color: var(--red); color: var(--red); }
 .btn.small { min-height: 36px; padding: 4px 12px; font-size: 15px; }
@@ -623,13 +623,39 @@ function filterEmployees(q) {
 }
 $("empSearch").addEventListener("input", (e) => {
   const list = filterEmployees(e.target.value).slice(0, 40);
-  const el = $("empList"); el.style.display = ""; el.innerHTML = list.length ? "" : `<div class="empty">No matching employees. Admins can add them under Admin → Employees.</div>`;
+  const el = $("empList"); el.style.display = ""; el.innerHTML = list.length ? "" : `<div class="empty">No matching employees.</div>`;
   list.forEach((emp) => {
     const b = document.createElement("button"); b.type = "button";
     b.innerHTML = `<div>${esc(emp.full_name)}</div><div class="meta">${esc(emp.employee_no || "")}${emp.department ? " · " + esc(emp.department.name) : ""}</div>`;
     b.addEventListener("click", () => chooseEmployee(emp)); el.appendChild(b);
   });
+  const q = e.target.value.trim();
+  if (q.length >= 2) {
+    const add = document.createElement("button"); add.type = "button"; add.style.color = "var(--green-deep)"; add.style.fontWeight = "600";
+    add.innerHTML = `＋ Add “${esc(q)}” as a new employee`;
+    add.addEventListener("click", () => openQuickAddEmployee(q)); el.appendChild(add);
+  }
 });
+function openQuickAddEmployee(name) {
+  const deptOpts = S.departments.filter((d) => d.active).map((d) => `<option value="${d.id}" ${d.id === $("deptSelect").value ? "selected" : ""}>${esc(d.name)}</option>`).join("");
+  openModal(`<h2>New employee</h2><p class="hint">Check the list first — if they're already in it under a slightly different name, pick that instead so their history stays in one place.</p>
+    <div class="field"><label for="qName">Full name</label><input id="qName" value="${esc(name)}"></div>
+    <div class="field"><label for="qNo">Employee no.</label><input id="qNo" placeholder="Required" inputmode="numeric"></div>
+    <div class="field"><label for="qDept">Home department</label><select id="qDept"><option value="">Choose</option>${deptOpts}</select></div>
+    <div class="btn-row"><button class="btn primary" id="qSave">Add and select</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+  $("qNo").focus();
+  $("qSave").addEventListener("click", async () => {
+    const full_name = $("qName").value.trim(), employee_no = $("qNo").value.trim(), department_id = $("qDept").value || null;
+    if (!full_name || !employee_no) return toast("Name and employee number are both required.", true);
+    const dupe = S.employees.find((x) => x.employee_no && x.employee_no.toLowerCase() === employee_no.toLowerCase());
+    if (dupe) { closeModal(); chooseEmployee(dupe); return toast(`#${employee_no} is already ${dupe.full_name} — selected them.`); }
+    const { data, error } = await sb.from("apparel_employees").insert({ full_name, employee_no, department_id }).select("*, department:apparel_departments(name)").single();
+    if (error) return fail(error, error.code === "42501" ? "Adding employees isn't enabled yet (run the policy SQL)" : "Couldn't add employee");
+    S.employees.push(data); S.employees.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    closeModal(); chooseEmployee(data); toast(`Added ${full_name}`);
+    if (isAdmin()) renderEmployees();
+  });
+}
 function chooseEmployee(emp) {
   S.cartEmployee = emp;
   $("empSearch").value = emp.full_name; $("empList").style.display = "none";
