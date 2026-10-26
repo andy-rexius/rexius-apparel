@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Rexius Apparel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root {
+  --paper: #F4F6F1;
+  --panel: #FFFFFF;
+  --ink: #1B2420;
+  --ink-2: #3D4844;
+  --mute: #6C756F;
+  --line: #C6CDC6;
+  --line-strong: #1B2420;
+  --green: #2E6A43;
+  --green-deep: #214E31;
+  --lime: #D8E82C;
+  --lime-deep: #B5C41A;
+  --orange: #E4621B;
+  --orange-soft: #FCEBDD;
+  --lime-soft: #F3F7C9;
+  --red: #B9321E;
+  --tap: 48px;
+  --radius: 4px;
+  --font: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  --font-head: "Barlow Semi Condensed", "Barlow", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--font); font-size: 17px; line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-family: var(--font-head); line-height: 1.1; margin: 0; }
+h1 { font-size: 30px; font-weight: 700; }
+h2 { font-size: 24px; font-weight: 700; }
+h3 { font-size: 19px; font-weight: 600; }
+p { margin: 0 0 12px; }
+a { color: var(--green); }
+button { font: inherit; cursor: pointer; }
+input, select, textarea { font: inherit; color: var(--ink); }
+:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+
+/* layout */
+.shell { min-height: 100%; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); }
+.topbar {
+  background: var(--ink); color: #fff; padding: 12px 16px 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand h1 { color: #fff; font-size: 22px; letter-spacing: .01em; }
+.stripe { width: 10px; height: 34px; background:
+  repeating-linear-gradient(180deg, var(--lime) 0 11px, #B9BEB9 11px 17px); border-radius: 2px; }
+.whoami { font-size: 14px; color: #CBD3CC; display: flex; align-items: center; gap: 10px; }
+.whoami button { background: none; border: 1px solid #5A6560; color: #fff; padding: 6px 10px; border-radius: var(--radius); font-size: 14px; }
+
+nav.tabs { display: flex; background: var(--panel); border-bottom: 1.5px solid var(--line-strong); overflow-x: auto; }
+nav.tabs button {
+  flex: 1 0 auto; min-height: var(--tap); background: none; border: 0; border-bottom: 4px solid transparent;
+  padding: 10px 14px 8px; font-weight: 600; color: var(--ink-2); white-space: nowrap; position: relative;
+}
+nav.tabs button.active { color: var(--ink); border-bottom-color: var(--lime); }
+nav.tabs .badge { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; border-radius: 10px;
+  background: var(--orange); color: #fff; font-size: 12px; font-weight: 700; line-height: 20px; }
+
+main { flex: 1; padding: 18px 16px calc(28px + env(safe-area-inset-bottom, 0px)); max-width: 1100px; width: 100%; margin: 0 auto; }
+.view { display: none; }
+.view.active { display: block; }
+.view-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.sub { color: var(--mute); font-size: 15px; }
+
+/* panels */
+.panel { background: var(--panel); border: 1.5px solid var(--line-strong); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+.panel.quiet { border-color: var(--line); }
+.panel h3 { margin-bottom: 10px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+.row > * { flex: 1 1 160px; }
+.row .narrow { flex: 0 1 120px; }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.field label { font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.field input, .field select, .field textarea {
+  min-height: var(--tap); padding: 8px 12px; border: 1.5px solid var(--line); border-radius: var(--radius); background: #fff; width: 100%;
+}
+.field textarea { min-height: 72px; }
+.hint { font-size: 14px; color: var(--mute); }
+
+/* buttons */
+.btn { min-height: var(--tap); padding: 10px 18px; border-radius: var(--radius); border: 1.5px solid var(--ink); background: #fff; color: var(--ink); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.primary { background: var(--lime); border-color: var(--ink); }
+.btn.primary:active { background: var(--lime-deep); }
+.btn.green { background: var(--green); border-color: var(--green-deep); color: #fff; }
+.btn.danger { border-color: var(--red); color: var(--red); }
+.btn.small { min-height: 36px; padding: 4px 12px; font-size: 15px; }
+.btn.block { width: 100%; }
+.btn.big { font-size: 20px; min-height: 64px; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+
+/* tables */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--ink-2); font-size: 14px; border-bottom: 1.5px solid var(--line-strong); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.low td { background: var(--orange-soft); }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 13px; font-weight: 600; }
+.pill.low { background: var(--orange); color: #fff; }
+.pill.ok { background: var(--lime-soft); color: var(--ink); }
+.pill.off { background: #E6E9E5; color: var(--mute); }
+.pill.admin { background: var(--green); color: #fff; }
+.pill.checkout { background: var(--lime-soft); color: var(--ink); }
+.actions { white-space: nowrap; }
+.actions button { margin-right: 4px; }
+.empty { color: var(--mute); padding: 20px 0; text-align: center; }
+
+/* checkout specifics */
+#reader { width: 100%; max-width: 420px; margin: 0 auto 10px; border: 1.5px solid var(--ink); border-radius: var(--radius); overflow: hidden; background: #000; }
+#reader video { width: 100% !important; }
+.scan-hint { text-align: center; color: var(--mute); font-size: 15px; margin-bottom: 10px; }
+.cart-line { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cart-line:last-child { border-bottom: 0; }
+.cart-line .name { font-weight: 600; }
+.cart-line .meta { font-size: 14px; color: var(--mute); }
+.qty { display: inline-flex; align-items: center; border: 1.5px solid var(--ink); border-radius: var(--radius); overflow: hidden; }
+.qty button { width: 44px; height: 44px; border: 0; background: #fff; font-size: 22px; font-weight: 600; }
+.qty input { width: 52px; height: 44px; border: 0; border-left: 1.5px solid var(--ink); border-right: 1.5px solid var(--ink); text-align: center; font-size: 18px; font-weight: 600; }
+.cart-line .remove { background: none; border: 0; color: var(--red); font-size: 14px; padding: 4px; }
+.picklist { max-height: 260px; overflow-y: auto; border: 1.5px solid var(--line); border-radius: var(--radius); }
+.picklist button { display: block; width: 100%; text-align: left; background: #fff; border: 0; border-bottom: 1px solid var(--line); padding: 10px 12px; min-height: var(--tap); }
+.picklist button:last-child { border-bottom: 0; }
+.picklist button:hover, .picklist button:focus { background: var(--lime-soft); }
+.picklist .meta { color: var(--mute); font-size: 14px; }
+.picklist .onhand { float: right; font-variant-numeric: tabular-nums; }
+.summary { display: flex; justify-content: space-between; align-items: center; font-size: 18px; font-weight: 600; padding: 12px 0 4px; }
+
+/* stat strip */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.stat { border: 1.5px solid var(--line); border-radius: var(--radius); background: #fff; padding: 10px 12px; }
+.stat .n { font-family: var(--font-head); font-size: 30px; font-weight: 700; line-height: 1; }
+.stat .l { font-size: 14px; color: var(--mute); margin-top: 4px; }
+.stat.warn { border-color: var(--orange); }
+.stat.warn .n { color: var(--orange); }
+
+/* report groups */
+.group { margin-bottom: 18px; }
+.group-head { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1.5px solid var(--line-strong); }
+.group-head .total { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 18px; }
+
+/* admin subnav */
+.subnav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.subnav button { min-height: 40px; padding: 6px 14px; border: 1.5px solid var(--line); background: #fff; border-radius: 20px; font-weight: 600; color: var(--ink-2); }
+.subnav button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.subview { display: none; }
+.subview.active { display: block; }
+
+/* modal */
+.modal-bg { position: fixed; inset: 0; background: rgba(27,36,32,.5); display: none; align-items: flex-end; justify-content: center; z-index: 50; padding: 0; }
+.modal-bg.open { display: flex; }
+.modal { background: #fff; width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; border-radius: 8px 8px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px)); border-top: 4px solid var(--lime); }
+@media (min-width: 640px) { .modal-bg { align-items: center; padding: 20px; } .modal { border-radius: 8px; border: 1.5px solid var(--ink); } }
+.modal h2 { margin-bottom: 14px; }
+
+/* toast */
+#toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: var(--radius); font-weight: 600; display: none; z-index: 60; max-width: 92vw; border-left: 6px solid var(--lime); }
+#toast.err { border-left-color: var(--orange); }
+#toast.show { display: block; }
+
+/* login */
+.login-wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login { width: 100%; max-width: 380px; }
+.login .brand { margin-bottom: 22px; }
+.login .brand h1 { color: var(--ink); font-size: 28px; }
+.login .brand p { margin: 2px 0 0; }
+
+/* labels */
+.label-picker { display: grid; grid-template-columns: 1fr 90px; gap: 8px 12px; align-items: center; }
+.label-picker .lp-name { font-weight: 500; }
+.label-picker input { min-height: 40px; width: 80px; padding: 4px 8px; border: 1.5px solid var(--line); border-radius: var(--radius); text-align: center; }
+#labelSheet { display: none; }
+
+@media print {
+  body { background: #fff; }
+  .shell, #toast, .modal-bg { display: none !important; }
+  #labelSheet { display: block; }
+  @page { size: letter; margin: 0; }
+  .sheet { width: 8.5in; height: 11in; padding: 0.5in 0 0 0.1875in; display: grid; grid-template-columns: repeat(3, 2.625in); column-gap: 0.125in; grid-auto-rows: 1in; page-break-after: always; }
+  .label { display: flex; align-items: center; gap: 0.08in; padding: 0.06in 0.1in; overflow: hidden; }
+  .label .qr { width: 0.82in; height: 0.82in; flex: 0 0 auto; }
+  .label .qr img, .label .qr canvas { width: 0.82in !important; height: 0.82in !important; }
+  .label .t { font-family: var(--font); line-height: 1.15; }
+  .label .t .n { font-weight: 700; font-size: 10.5pt; }
+  .label .t .s { font-size: 13pt; font-weight: 700; }
+  .label .t .k { font-size: 8pt; color: #444; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- ============================ LOGIN ============================ -->
+<div id="loginView" class="login-wrap">
+  <div class="login">
+    <div class="brand"><div class="stripe"></div><div><h1>Rexius Apparel</h1><p class="sub">High-vis issue and inventory</p></div></div>
+    <div class="panel">
+      <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username" inputmode="email"></div>
+      <div class="field"><label for="loginPass">Password</label><input id="loginPass" type="password" autocomplete="current-password"></div>
+      <button class="btn primary block" id="loginBtn">Sign in</button>
+      <p class="hint" id="loginMsg" style="margin-top:10px"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ APP ============================ -->
+<div id="appShell" class="shell" style="display:none">
+  <header class="topbar">
+    <div class="brand"><div class="stripe"></div><h1>Rexius Apparel</h1></div>
+    <div class="whoami"><span id="whoName"></span><button id="signOutBtn">Sign out</button></div>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button data-view="checkout" class="active">Check out</button>
+    <button data-view="receive">Receive</button>
+    <button data-view="inventory">Inventory<span class="badge" id="lowBadge" style="display:none"></span></button>
+    <button data-view="reports">Reports</button>
+    <button data-view="admin" id="adminTab" style="display:none">Admin</button>
+  </nav>
+
+  <main>
+    <!-- ---------- CHECKOUT ---------- -->
+    <section class="view active" id="view-checkout">
+      <div class="view-head"><h2>Check out apparel</h2><span class="sub">Scan each item, then say who it's for.</span></div>
+
+      <div class="panel">
+        <div id="scanArea" style="display:none">
+          <div id="reader"></div>
+          <div class="scan-hint">Point the camera at a label. Each scan adds one.</div>
+          <button class="btn block" id="stopScanBtn">Done scanning</button>
+        </div>
+        <div id="scanStart">
+          <button class="btn primary big block" id="startScanBtn">Scan a label</button>
+          <div class="btn-row"><button class="btn block" id="pickItemBtn">Pick from list instead</button></div>
+        </div>
+        <div id="pickArea" style="display:none; margin-top:12px">
+          <div class="field"><label for="pickSearch">Find an item</label><input id="pickSearch" placeholder="Type a name, size or SKU" autocomplete="off"></div>
+          <div class="picklist" id="pickList"></div>
+          <div class="btn-row"><button class="btn small" id="pickCloseBtn">Close list</button></div>
+        </div>
+      </div>
+
+      <div class="panel" id="cartPanel">
+        <h3>Items</h3>
+        <div id="cartLines"><div class="empty">Nothing scanned yet.</div></div>
+      </div>
+
+      <div class="panel">
+        <h3>Who is this for?</h3>
+        <div class="field"><label for="empSearch">Employee</label><input id="empSearch" placeholder="Start typing a name or employee number" autocomplete="off"></div>
+        <div class="picklist" id="empList" style="display:none"></div>
+        <div id="empChosen" class="hint" style="margin:-6px 0 12px"></div>
+        <div class="field"><label for="deptSelect">Charge to department</label><select id="deptSelect"></select></div>
+        <div class="field"><label for="coNotes">Notes (optional)</label><input id="coNotes" placeholder="e.g. replacement for torn vest"></div>
+        <div class="summary"><span id="cartCount">0 items</span><span id="cartValue">$0.00</span></div>
+        <button class="btn primary big block" id="confirmCheckoutBtn" disabled>Confirm checkout</button>
+      </div>
+    </section>
+
+    <!-- ---------- RECEIVE ---------- -->
+    <section class="view" id="view-receive">
+      <div class="view-head"><h2>Receive stock</h2><span class="sub">Add incoming orders to inventory.</span></div>
+      <div class="panel">
+        <div class="field"><label for="rcvSearch">Item</label><input id="rcvSearch" placeholder="Type a name, size or SKU" autocomplete="off"></div>
+        <div class="picklist" id="rcvList" style="display:none"></div>
+        <div id="rcvChosen" class="hint" style="margin:-6px 0 12px"></div>
+        <div class="row">
+          <div class="field narrow"><label for="rcvQty">Quantity</label><input id="rcvQty" type="number" min="1" inputmode="numeric" value="1"></div>
+          <div class="field narrow"><label for="rcvCost">Unit cost</label><input id="rcvCost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+        </div>
+        <p class="hint">The unit cost becomes the item's current cost and is used for future chargebacks. Leave it blank to keep the existing cost.</p>
+        <div class="field"><label for="rcvNotes">Notes (optional)</label><input id="rcvNotes" placeholder="PO number, vendor, etc."></div>
+        <button class="btn primary big block" id="confirmReceiveBtn" disabled>Add to inventory</button>
+      </div>
+    </section>
+
+    <!-- ---------- INVENTORY ---------- -->
+    <section class="view" id="view-inventory">
+      <div class="view-head"><h2>Inventory</h2><button class="btn small" id="refreshInvBtn">Refresh</button></div>
+      <div class="stats" id="invStats"></div>
+      <div class="panel quiet">
+        <div class="row">
+          <div class="field"><label for="invSearch">Search</label><input id="invSearch" placeholder="Name, size or SKU" autocomplete="off"></div>
+          <div class="field narrow"><label for="invCat">Category</label><select id="invCat"><option value="">All</option></select></div>
+          <div class="field narrow"><label for="invOnly">Show</label><select id="invOnly"><option value="all">All items</option><option value="low">Low stock only</option></select></div>
+        </div>
+        <div class="table-wrap"><table id="invTable"><thead><tr><th>Item</th><th>Size</th><th>SKU</th><th class="num">On hand</th><th class="num">Reorder at</th><th class="num">Unit cost</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="panel quiet">
+        <h3>Recent activity</h3>
+        <div class="table-wrap"><table id="actTable"><thead><tr><th>When</th><th>What</th><th>Item</th><th class="num">Qty</th><th>Employee / Dept</th><th>By</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ---------- REPORTS ---------- -->
+    <section class="view" id="view-reports">
+      <div class="view-head"><h2>Department chargebacks</h2><span class="sub">Checkouts grouped by department for a date range.</span></div>
+      <div class="panel quiet">
+        <div class="row">
+          <div class="field narrow"><label for="repFrom">From</label><input id="repFrom" type="date"></div>
+          <div class="field narrow"><label for="repTo">To</label><input id="repTo" type="date"></div>
+          <div class="field narrow"><label for="repDept">Department</label><select id="repDept"><option value="">All</option></select></div>
+          <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><div class="btn-row" style="margin:0"><button class="btn primary" id="runReportBtn">Run report</button><button class="btn" id="csvBtn" disabled>Download CSV</button></div></div>
+        </div>
+        <div class="btn-row"><button class="btn small" data-range="month">This month</button><button class="btn small" data-range="lastmonth">Last month</button><button class="btn small" data-range="quarter">This quarter</button><button class="btn small" data-range="year">Year to date</button></div>
+      </div>
+      <div id="reportOut"><div class="empty">Choose a date range and run the report.</div></div>
+    </section>
+
+    <!-- ---------- ADMIN ---------- -->
+    <section class="view" id="view-admin">
+      <div class="view-head"><h2>Admin</h2></div>
+      <div class="subnav" id="adminNav">
+        <button data-sub="items" class="active">Items</button>
+        <button data-sub="labels">Print labels</button>
+        <button data-sub="departments">Departments</button>
+        <button data-sub="employees">Employees</button>
+        <button data-sub="users">Users</button>
+      </div>
+
+      <div class="subview active" id="sub-items">
+        <div class="btn-row" style="margin-bottom:12px"><button class="btn primary" id="addItemBtn">Add item</button><button class="btn" id="bulkItemBtn">Add one item per size</button></div>
+        <div class="panel quiet"><div class="table-wrap"><table id="adminItemsTable"><thead><tr><th>Item</th><th>Category</th><th>Size</th><th>SKU</th><th class="num">Unit cost</th><th class="num">Reorder at</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div></div>
+      </div>
+
+      <div class="subview" id="sub-labels">
+        <div class="panel quiet">
+          <p>Choose how many labels to print for each item. Labels fit Avery 5160 sheets (30 per page, 1" × 2⅝"). Set your printer to 100% scale with no margins.</p>
+          <div class="btn-row" style="margin-bottom:12px"><button class="btn small" id="labelsClearBtn">Clear all</button><button class="btn small" id="labelsFiveBtn">Set all to 5</button></div>
+          <div class="label-picker" id="labelPicker"></div>
+          <div class="btn-row" style="margin-top:16px"><button class="btn primary" id="printLabelsBtn">Print labels</button></div>
+        </div>
+      </div>
+
+      <div class="subview" id="sub-departments">
+        <div class="panel">
+          <h3>Add a department</h3>
+          <div class="row">
+            <div class="field"><label for="deptName">Name</label><input id="deptName"></div>
+            <div class="field narrow"><label for="deptCode">Code (optional)</label><input id="deptCode" placeholder="e.g. 410"></div>
+            <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn primary" id="addDeptBtn">Add department</button></div>
+          </div>
+        </div>
+        <div class="panel quiet"><div class="table-wrap"><table id="deptTable"><thead><tr><th>Department</th><th>Code</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div></div>
+      </div>
+
+      <div class="subview" id="sub-employees">
+        <div class="panel">
+          <h3>Add an employee</h3>
+          <div class="row">
+            <div class="field"><label for="empName">Full name</label><input id="empName"></div>
+            <div class="field narrow"><label for="empNo">Employee no.</label><input id="empNo"></div>
+            <div class="field"><label for="empDept">Home department</label><select id="empDept"></select></div>
+            <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn primary" id="addEmpBtn">Add employee</button></div>
+          </div>
+        </div>
+        <div class="panel quiet">
+          <div class="field"><label for="empAdminSearch">Search</label><input id="empAdminSearch" autocomplete="off"></div>
+          <div class="table-wrap"><table id="empTable"><thead><tr><th>Name</th><th>Employee no.</th><th>Department</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="subview" id="sub-users">
+        <div class="panel">
+          <h3>Add an app user</h3>
+          <p class="hint">The person needs a login first: in Supabase go to Authentication → Users → Add user with their email and a password, then add them here.</p>
+          <div class="row">
+            <div class="field"><label for="userEmail">Email</label><input id="userEmail" type="email"></div>
+            <div class="field"><label for="userName">Display name</label><input id="userName"></div>
+            <div class="field narrow"><label for="userRole">Role</label><select id="userRole"><option value="checkout">Checkout</option><option value="admin">Admin</option></select></div>
+            <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn primary" id="addUserBtn">Add user</button></div>
+          </div>
+          <p class="hint">Checkout users can scan items out, receive stock and view inventory and reports. Admins can also manage items, people and users.</p>
+        </div>
+        <div class="panel quiet"><div class="table-wrap"><table id="userTable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="labelSheet"></div>
+
+<!-- modal -->
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
+<div id="toast"></div>
+
+<script>
+/* =========================================================
+   CONFIG
+   ========================================================= */
+const SUPABASE_URL = "https://hibjqcgitqtgmkurghlw.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpYmpxY2dpdHF0Z21rdXJnaGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2OTMzMzQsImV4cCI6MjEwODI2OTMzNH0.XBY8jA6HoQVMSg_jefCgI3ac-wIU4Jo2ZwbHYqiMbPU";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: "apparel" } });
+
+/* =========================================================
+   STATE + HELPERS
+   ========================================================= */
+const S = {
+  session: null, me: null, role: null,
+  items: [], inventory: [], departments: [], employees: [], users: [],
+  cart: [], cartEmployee: null, rcvItem: null, scanner: null, lastScan: { code: null, t: 0 },
+  report: null
+};
+const $ = (id) => document.getElementById(id);
+const money = (n) => "$" + (Number(n) || 0).toFixed(2);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const itemLabel = (it) => `${it.name}${it.size ? " – " + it.size : ""}`;
+const fmtWhen = (iso) => { const d = new Date(iso); return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); };
+const isAdmin = () => S.role === "admin";
+
+let toastTimer;
+function toast(msg, isErr = false) {
+  const t = $("toast"); t.textContent = msg; t.className = "show" + (isErr ? " err" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.className = ""), isErr ? 5000 : 2600);
+}
+function fail(err, ctx) { console.error(ctx, err); toast((ctx ? ctx + ": " : "") + (err?.message || err), true); }
+
+function openModal(html) { $("modal").innerHTML = html; $("modalBg").classList.add("open"); }
+function closeModal() { $("modalBg").classList.remove("open"); $("modal").innerHTML = ""; }
+$("modalBg").addEventListener("click", (e) => { if (e.target === $("modalBg")) closeModal(); });
+
+/* =========================================================
+   AUTH
+   ========================================================= */
+$("loginBtn").addEventListener("click", signIn);
+$("loginPass").addEventListener("keydown", (e) => { if (e.key === "Enter") signIn(); });
+async function signIn() {
+  $("loginMsg").textContent = "";
+  const { error } = await sb.auth.signInWithPassword({ email: $("loginEmail").value.trim(), password: $("loginPass").value });
+  if (error) $("loginMsg").textContent = error.message === "Invalid login credentials" ? "That email and password didn't match." : error.message;
+}
+$("signOutBtn").addEventListener("click", async () => { await stopScanner(); await sb.auth.signOut(); });
+
+sb.auth.onAuthStateChange((_evt, session) => {
+  S.session = session;
+  if (session) boot(); else showLogin();
+});
+
+function showLogin() {
+  $("appShell").style.display = "none"; $("loginView").style.display = "flex";
+  S.me = null; S.role = null;
+}
+
+async function boot() {
+  const { data, error } = await sb.from("app_users").select("*").eq("user_id", S.session.user.id).maybeSingle();
+  if (error) return fail(error, "Couldn't load your account");
+  if (!data || !data.active) {
+    $("loginMsg").textContent = "Your login works, but this account isn't set up for the apparel app yet. Ask an admin to add you.";
+    await sb.auth.signOut(); return;
+  }
+  S.me = data; S.role = data.role;
+  $("whoName").textContent = data.display_name || S.session.user.email;
+  $("adminTab").style.display = isAdmin() ? "" : "none";
+  $("loginView").style.display = "none"; $("appShell").style.display = "flex";
+  await loadRefs();
+  showView("checkout");
+}
+
+/* =========================================================
+   DATA LOADING
+   ========================================================= */
+async function loadRefs() {
+  const [it, inv, dp, em] = await Promise.all([
+    sb.from("items").select("*").order("name").order("size"),
+    sb.from("inventory").select("*").order("name").order("size"),
+    sb.from("departments").select("*").order("name"),
+    sb.from("employees").select("*, department:departments(name)").order("full_name")
+  ]);
+  for (const r of [it, inv, dp, em]) if (r.error) return fail(r.error, "Couldn't load data");
+  S.items = it.data; S.inventory = inv.data; S.departments = dp.data; S.employees = em.data;
+  renderDeptSelects(); renderInventory(); updateLowBadge(); renderCart();
+  if (isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); }
+}
+async function refreshInventory() {
+  const { data, error } = await sb.from("inventory").select("*").order("name").order("size");
+  if (error) return fail(error, "Couldn't refresh inventory");
+  S.inventory = data; renderInventory(); updateLowBadge(); renderCart();
+}
+const onHandOf = (itemId) => (S.inventory.find((i) => i.id === itemId) || {}).on_hand ?? 0;
+function updateLowBadge() {
+  const n = S.inventory.filter((i) => i.active && i.low_stock).length;
+  const b = $("lowBadge"); b.textContent = n; b.style.display = n ? "" : "none";
+}
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
+$("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) showView(b.dataset.view); });
+async function showView(name) {
+  if (name !== "checkout") await stopScanner();
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + name));
+  if (name === "inventory") { await refreshInventory(); loadActivity(); }
+  if (name === "reports") { populateReportDepts(); if (!$("repFrom").value) setRange("month"); }
+  if (name === "admin" && isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); loadUsers(); }
+  window.scrollTo(0, 0);
+}
+$("adminNav").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll("#adminNav button").forEach((x) => x.classList.toggle("active", x === b));
+  document.querySelectorAll(".subview").forEach((v) => v.classList.toggle("active", v.id === "sub-" + b.dataset.sub));
+});
+
+/* =========================================================
+   ITEM PICKLIST (shared by checkout + receive)
+   ========================================================= */
+function filterItems(q) {
+  q = q.trim().toLowerCase();
+  return S.items.filter((it) => it.active && (!q || `${it.name} ${it.size || ""} ${it.sku} ${it.category || ""}`.toLowerCase().includes(q)));
+}
+function renderPicklist(el, q, onPick) {
+  const list = filterItems(q).slice(0, 60);
+  el.innerHTML = list.length ? "" : `<div class="empty">No matching items.</div>`;
+  list.forEach((it) => {
+    const b = document.createElement("button"); b.type = "button";
+    b.innerHTML = `<span class="onhand">${onHandOf(it.id)} on hand</span><div>${esc(itemLabel(it))}</div><div class="meta">${esc(it.sku)}${it.category ? " · " + esc(it.category) : ""}</div>`;
+    b.addEventListener("click", () => onPick(it));
+    el.appendChild(b);
+  });
+}
+
+/* =========================================================
+   CHECKOUT
+   ========================================================= */
+$("startScanBtn").addEventListener("click", startScanner);
+$("stopScanBtn").addEventListener("click", stopScanner);
+$("pickItemBtn").addEventListener("click", () => { $("pickArea").style.display = ""; renderPicklist($("pickList"), "", addToCart); $("pickSearch").focus(); });
+$("pickCloseBtn").addEventListener("click", () => ($("pickArea").style.display = "none"));
+$("pickSearch").addEventListener("input", (e) => renderPicklist($("pickList"), e.target.value, addToCart));
+
+async function startScanner() {
+  if (!window.Html5Qrcode) return toast("Scanner library didn't load. Check your connection.", true);
+  $("scanStart").style.display = "none"; $("scanArea").style.display = "";
+  try {
+    S.scanner = new Html5Qrcode("reader");
+    await S.scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 240, height: 240 } }, onScan, () => {});
+  } catch (e) {
+    await stopScanner();
+    toast("Couldn't open the camera. Allow camera access for this site, or pick from the list.", true);
+  }
+}
+async function stopScanner() {
+  if (S.scanner) { try { await S.scanner.stop(); S.scanner.clear(); } catch (_) {} S.scanner = null; }
+  $("scanArea").style.display = "none"; $("scanStart").style.display = "";
+}
+function onScan(code) {
+  const now = Date.now();
+  if (code === S.lastScan.code && now - S.lastScan.t < 2000) return;   // ignore repeat reads of the same label
+  S.lastScan = { code, t: now };
+  const sku = String(code).trim();
+  const it = S.items.find((i) => i.sku.toLowerCase() === sku.toLowerCase());
+  if (!it) return toast(`No item with SKU "${sku}".`, true);
+  if (!it.active) return toast(`${itemLabel(it)} is inactive.`, true);
+  if (navigator.vibrate) navigator.vibrate(60);
+  addToCart(it);
+}
+function addToCart(it) {
+  const line = S.cart.find((l) => l.item.id === it.id);
+  if (line) line.qty += 1; else S.cart.push({ item: it, qty: 1 });
+  toast(`Added ${itemLabel(it)}`);
+  renderCart();
+}
+function renderCart() {
+  const el = $("cartLines");
+  if (!S.cart.length) { el.innerHTML = `<div class="empty">Nothing scanned yet.</div>`; }
+  else {
+    el.innerHTML = "";
+    S.cart.forEach((l, idx) => {
+      const oh = onHandOf(l.item.id);
+      const d = document.createElement("div"); d.className = "cart-line";
+      d.innerHTML = `<div><div class="name">${esc(itemLabel(l.item))}</div><div class="meta">${esc(l.item.sku)} · ${money(l.item.unit_cost)} each · ${oh} on hand${l.qty > oh ? ' · <span style="color:var(--orange);font-weight:600">more than on hand</span>' : ""}</div><button class="remove" data-i="${idx}">Remove</button></div>
+        <div class="qty"><button data-i="${idx}" data-d="-1" aria-label="Less">−</button><input type="number" min="1" value="${l.qty}" data-i="${idx}" inputmode="numeric"><button data-i="${idx}" data-d="1" aria-label="More">+</button></div>`;
+      el.appendChild(d);
+    });
+  }
+  const count = S.cart.reduce((a, l) => a + l.qty, 0);
+  const value = S.cart.reduce((a, l) => a + l.qty * Number(l.item.unit_cost || 0), 0);
+  $("cartCount").textContent = `${count} item${count === 1 ? "" : "s"}`;
+  $("cartValue").textContent = money(value);
+  $("confirmCheckoutBtn").disabled = !(S.cart.length && S.cartEmployee && $("deptSelect").value);
+}
+$("cartLines").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  const i = Number(b.dataset.i);
+  if (b.classList.contains("remove")) S.cart.splice(i, 1);
+  else { S.cart[i].qty = Math.max(1, S.cart[i].qty + Number(b.dataset.d)); }
+  renderCart();
+});
+$("cartLines").addEventListener("change", (e) => {
+  if (e.target.tagName !== "INPUT") return;
+  const i = Number(e.target.dataset.i); S.cart[i].qty = Math.max(1, parseInt(e.target.value) || 1); renderCart();
+});
+
+// employee picker
+function filterEmployees(q) {
+  q = q.trim().toLowerCase();
+  return S.employees.filter((e) => e.active && (!q || `${e.full_name} ${e.employee_no || ""}`.toLowerCase().includes(q)));
+}
+$("empSearch").addEventListener("input", (e) => {
+  const list = filterEmployees(e.target.value).slice(0, 40);
+  const el = $("empList"); el.style.display = ""; el.innerHTML = list.length ? "" : `<div class="empty">No matching employees. Admins can add them under Admin → Employees.</div>`;
+  list.forEach((emp) => {
+    const b = document.createElement("button"); b.type = "button";
+    b.innerHTML = `<div>${esc(emp.full_name)}</div><div class="meta">${esc(emp.employee_no || "")}${emp.department ? " · " + esc(emp.department.name) : ""}</div>`;
+    b.addEventListener("click", () => chooseEmployee(emp)); el.appendChild(b);
+  });
+});
+function chooseEmployee(emp) {
+  S.cartEmployee = emp;
+  $("empSearch").value = emp.full_name; $("empList").style.display = "none";
+  $("empChosen").textContent = `Selected: ${emp.full_name}${emp.employee_no ? " (#" + emp.employee_no + ")" : ""}`;
+  if (emp.department_id) $("deptSelect").value = emp.department_id;
+  renderCart();
+}
+$("deptSelect").addEventListener("change", renderCart);
+
+function renderDeptSelects() {
+  const opts = (blank) => (blank ? `<option value="">${blank}</option>` : "") + S.departments.filter((d) => d.active).map((d) => `<option value="${d.id}">${esc(d.name)}${d.code ? " (" + esc(d.code) + ")" : ""}</option>`).join("");
+  $("deptSelect").innerHTML = opts("Choose a department");
+  $("empDept").innerHTML = opts("None");
+}
+
+$("confirmCheckoutBtn").addEventListener("click", async () => {
+  const btn = $("confirmCheckoutBtn"); btn.disabled = true;
+  const rows = S.cart.map((l) => ({
+    type: "checkout", item_id: l.item.id, qty_change: -l.qty, unit_cost: l.item.unit_cost,
+    department_id: $("deptSelect").value, employee_id: S.cartEmployee.id, performed_by: S.session.user.id,
+    notes: $("coNotes").value.trim() || null
+  }));
+  const { error } = await sb.from("transactions").insert(rows);
+  if (error) { btn.disabled = false; return fail(error, "Checkout failed"); }
+  const n = S.cart.reduce((a, l) => a + l.qty, 0);
+  toast(`Checked out ${n} item${n === 1 ? "" : "s"} to ${S.cartEmployee.full_name}`);
+  S.cart = []; S.cartEmployee = null; $("empSearch").value = ""; $("empChosen").textContent = ""; $("coNotes").value = ""; $("deptSelect").value = "";
+  await refreshInventory(); renderCart(); window.scrollTo(0, 0);
+});
+
+/* =========================================================
+   RECEIVE
+   ========================================================= */
+$("rcvSearch").addEventListener("input", (e) => { $("rcvList").style.display = ""; renderPicklist($("rcvList"), e.target.value, chooseRcv); });
+$("rcvSearch").addEventListener("focus", (e) => { $("rcvList").style.display = ""; renderPicklist($("rcvList"), e.target.value, chooseRcv); });
+function chooseRcv(it) {
+  S.rcvItem = it; $("rcvSearch").value = itemLabel(it); $("rcvList").style.display = "none";
+  $("rcvChosen").textContent = `Selected: ${itemLabel(it)} · ${onHandOf(it.id)} on hand · current cost ${money(it.unit_cost)}`;
+  $("rcvCost").value = Number(it.unit_cost) ? Number(it.unit_cost).toFixed(2) : "";
+  $("confirmReceiveBtn").disabled = false;
+}
+$("confirmReceiveBtn").addEventListener("click", async () => {
+  const qty = parseInt($("rcvQty").value); if (!qty || qty < 1) return toast("Enter a quantity of 1 or more.", true);
+  const costRaw = $("rcvCost").value.trim(); const cost = costRaw === "" ? null : Number(costRaw);
+  if (cost !== null && (isNaN(cost) || cost < 0)) return toast("Unit cost must be a number.", true);
+  const btn = $("confirmReceiveBtn"); btn.disabled = true;
+  const { error } = await sb.from("transactions").insert({ type: "receive", item_id: S.rcvItem.id, qty_change: qty, unit_cost: cost, performed_by: S.session.user.id, notes: $("rcvNotes").value.trim() || null });
+  btn.disabled = false;
+  if (error) return fail(error, "Couldn't add stock");
+  toast(`Added ${qty} × ${itemLabel(S.rcvItem)}`);
+  $("rcvQty").value = 1; $("rcvNotes").value = ""; $("rcvSearch").value = ""; $("rcvChosen").textContent = ""; $("rcvCost").value = ""; S.rcvItem = null; btn.disabled = true;
+  await loadRefs();   // unit cost may have changed
+});
+
+/* =========================================================
+   INVENTORY
+   ========================================================= */
+$("refreshInvBtn").addEventListener("click", async () => { await refreshInventory(); loadActivity(); toast("Inventory refreshed"); });
+["invSearch", "invCat", "invOnly"].forEach((id) => $(id).addEventListener("input", renderInventory));
+
+function renderInventory() {
+  const cats = [...new Set(S.items.map((i) => i.category).filter(Boolean))].sort();
+  const sel = $("invCat"); const cur = sel.value;
+  sel.innerHTML = `<option value="">All</option>` + cats.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join(""); sel.value = cur;
+
+  const active = S.inventory.filter((i) => i.active);
+  const low = active.filter((i) => i.low_stock);
+  const units = active.reduce((a, i) => a + i.on_hand, 0);
+  const value = active.reduce((a, i) => a + i.on_hand * Number(i.unit_cost), 0);
+  $("invStats").innerHTML = `<div class="stat ${low.length ? "warn" : ""}"><div class="n">${low.length}</div><div class="l">${low.length === 1 ? "item" : "items"} at or below reorder point</div></div>
+    <div class="stat"><div class="n">${units}</div><div class="l">units on hand</div></div>
+    <div class="stat"><div class="n">${money(value)}</div><div class="l">inventory value at current cost</div></div>`;
+
+  const q = $("invSearch").value.trim().toLowerCase(); const cat = $("invCat").value; const only = $("invOnly").value;
+  let rows = active.filter((i) => (!q || `${i.name} ${i.size || ""} ${i.sku}`.toLowerCase().includes(q)) && (!cat || i.category === cat) && (only !== "low" || i.low_stock));
+  rows.sort((a, b) => (b.low_stock - a.low_stock) || a.name.localeCompare(b.name) || String(a.size || "").localeCompare(String(b.size || "")));
+  const tb = $("invTable").querySelector("tbody");
+  tb.innerHTML = rows.length ? rows.map((i) => `<tr class="${i.low_stock ? "low" : ""}"><td>${esc(i.name)}</td><td>${esc(i.size || "")}</td><td>${esc(i.sku)}</td><td class="num"><strong>${i.on_hand}</strong>${i.low_stock ? ' <span class="pill low">Low</span>' : ""}</td><td class="num">${i.reorder_threshold}</td><td class="num">${money(i.unit_cost)}</td><td class="actions">${isAdmin() ? `<button class="btn small" data-adjust="${i.id}">Adjust</button>` : ""}</td></tr>`).join("")
+    : `<tr><td colspan="7" class="empty">${S.items.length ? "No items match." : "No items yet. Admins can add them under Admin → Items."}</td></tr>`;
+}
+$("invTable").addEventListener("click", (e) => { const b = e.target.closest("[data-adjust]"); if (b) openAdjust(b.dataset.adjust); });
+function openAdjust(id) {
+  const i = S.inventory.find((x) => x.id === id);
+  openModal(`<h2>Adjust count</h2><p>${esc(itemLabel(i))} · currently <strong>${i.on_hand}</strong> on hand</p>
+    <div class="field"><label for="adjNew">Actual count</label><input id="adjNew" type="number" inputmode="numeric" value="${i.on_hand}"></div>
+    <div class="field"><label for="adjNotes">Reason</label><input id="adjNotes" placeholder="e.g. physical count, damaged, found in truck"></div>
+    <div class="btn-row"><button class="btn primary" id="adjSave">Save adjustment</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+  $("adjSave").addEventListener("click", async () => {
+    const target = parseInt($("adjNew").value); if (isNaN(target) || target < 0) return toast("Enter the actual count.", true);
+    const delta = target - i.on_hand; if (!delta) return closeModal();
+    const notes = $("adjNotes").value.trim(); if (!notes) return toast("Give a short reason so the history makes sense later.", true);
+    const { error } = await sb.from("transactions").insert({ type: "adjust", item_id: id, qty_change: delta, performed_by: S.session.user.id, notes });
+    if (error) return fail(error, "Couldn't save adjustment");
+    closeModal(); toast(`Set ${itemLabel(i)} to ${target}`); await refreshInventory(); loadActivity();
+  });
+}
+
+async function loadActivity() {
+  const { data, error } = await sb.from("transactions").select("id, type, qty_change, unit_cost, notes, created_at, performed_by, item:items(name,size,sku), department:departments(name), employee:employees(full_name)").order("created_at", { ascending: false }).limit(60);
+  if (error) return fail(error, "Couldn't load activity");
+  if (isAdmin() && !S.users.length) await loadUsers(true);
+  const byName = (uid) => (S.users.find((u) => u.user_id === uid) || {}).display_name || (uid === S.session.user.id ? (S.me.display_name || "you") : "—");
+  const tb = $("actTable").querySelector("tbody");
+  tb.innerHTML = data.length ? data.map((t) => {
+    const what = { checkout: "Checked out", receive: "Received", adjust: "Adjusted" }[t.type];
+    const who = t.type === "checkout" ? `${esc(t.employee?.full_name || "")}<div class="meta sub">${esc(t.department?.name || "")}</div>` : esc(t.notes || "");
+    return `<tr><td>${fmtWhen(t.created_at)}</td><td>${what}</td><td>${esc(t.item ? itemLabel(t.item) : "")}</td><td class="num">${t.qty_change > 0 ? "+" : ""}${t.qty_change}</td><td>${who}</td><td>${esc(byName(t.performed_by))}</td><td class="actions">${isAdmin() ? `<button class="btn small danger" data-del="${t.id}">Undo</button>` : ""}</td></tr>`;
+  }).join("") : `<tr><td colspan="7" class="empty">No activity yet.</td></tr>`;
+}
+$("actTable").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-del]"); if (!b) return;
+  if (!confirm("Remove this transaction? Inventory will be recalculated.")) return;
+  const { error } = await sb.from("transactions").delete().eq("id", b.dataset.del);
+  if (error) return fail(error, "Couldn't remove it");
+  toast("Transaction removed"); await refreshInventory(); loadActivity();
+});
+
+/* =========================================================
+   REPORTS
+   ========================================================= */
+const isoDate = (d) => d.toISOString().slice(0, 10);
+const localDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function setRange(kind) {
+  const n = new Date(); let a, b;
+  if (kind === "month") { a = new Date(n.getFullYear(), n.getMonth(), 1); b = n; }
+  if (kind === "lastmonth") { a = new Date(n.getFullYear(), n.getMonth() - 1, 1); b = new Date(n.getFullYear(), n.getMonth(), 0); }
+  if (kind === "quarter") { a = new Date(n.getFullYear(), Math.floor(n.getMonth() / 3) * 3, 1); b = n; }
+  if (kind === "year") { a = new Date(n.getFullYear(), 0, 1); b = n; }
+  $("repFrom").value = localDate(a); $("repTo").value = localDate(b);
+}
+document.querySelectorAll("[data-range]").forEach((b) => b.addEventListener("click", () => { setRange(b.dataset.range); runReport(); }));
+function populateReportDepts() {
+  const cur = $("repDept").value;
+  $("repDept").innerHTML = `<option value="">All</option>` + S.departments.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join(""); $("repDept").value = cur;
+}
+$("runReportBtn").addEventListener("click", runReport);
+async function runReport() {
+  const from = $("repFrom").value, to = $("repTo").value;
+  if (!from || !to) return toast("Choose both dates.", true);
+  const start = new Date(from + "T00:00:00"), end = new Date(to + "T00:00:00"); end.setDate(end.getDate() + 1);
+  let q = sb.from("transactions").select("id, qty_change, unit_cost, notes, created_at, performed_by, item:items(name,size,sku,category), department:departments(id,name,code), employee:employees(full_name,employee_no)")
+    .eq("type", "checkout").gte("created_at", start.toISOString()).lt("created_at", end.toISOString()).order("created_at");
+  if ($("repDept").value) q = q.eq("department_id", $("repDept").value);
+  const { data, error } = await q;
+  if (error) return fail(error, "Report failed");
+  if (isAdmin() && !S.users.length) await loadUsers(true);
+  S.report = { from, to, rows: data };
+  $("csvBtn").disabled = !data.length;
+  const out = $("reportOut");
+  if (!data.length) { out.innerHTML = `<div class="empty">No checkouts between ${from} and ${to}.</div>`; return; }
+
+  const groups = {};
+  data.forEach((t) => { const k = t.department?.id || "none"; (groups[k] = groups[k] || { dept: t.department, rows: [], total: 0, units: 0 }); groups[k].rows.push(t); groups[k].total += -t.qty_change * Number(t.unit_cost || 0); groups[k].units += -t.qty_change; });
+  const grand = Object.values(groups).reduce((a, g) => a + g.total, 0);
+  const gunits = Object.values(groups).reduce((a, g) => a + g.units, 0);
+  let html = `<div class="stats"><div class="stat"><div class="n">${money(grand)}</div><div class="l">total to charge back</div></div><div class="stat"><div class="n">${gunits}</div><div class="l">units issued</div></div><div class="stat"><div class="n">${Object.keys(groups).length}</div><div class="l">departments</div></div></div>`;
+  Object.values(groups).sort((a, b) => b.total - a.total).forEach((g) => {
+    html += `<div class="group panel quiet"><div class="group-head"><h3>${esc(g.dept?.name || "No department")}${g.dept?.code ? ` <span class="sub">(${esc(g.dept.code)})</span>` : ""}</h3><span class="total">${money(g.total)}</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Employee</th><th>Item</th><th class="num">Qty</th><th class="num">Unit cost</th><th class="num">Total</th></tr></thead><tbody>`;
+    g.rows.forEach((t) => { html += `<tr><td>${new Date(t.created_at).toLocaleDateString()}</td><td>${esc(t.employee?.full_name || "")}${t.employee?.employee_no ? ` <span class="sub">#${esc(t.employee.employee_no)}</span>` : ""}</td><td>${esc(t.item ? itemLabel(t.item) : "")}</td><td class="num">${-t.qty_change}</td><td class="num">${money(t.unit_cost)}</td><td class="num">${money(-t.qty_change * Number(t.unit_cost || 0))}</td></tr>`; });
+    html += `</tbody></table></div></div>`;
+  });
+  out.innerHTML = html;
+}
+$("csvBtn").addEventListener("click", () => {
+  if (!S.report) return;
+  const byName = (uid) => (S.users.find((u) => u.user_id === uid) || {}).display_name || "";
+  const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [["Date", "Department", "Dept code", "Employee", "Employee no", "Item", "Size", "SKU", "Category", "Qty", "Unit cost", "Total", "Checked out by", "Notes"].map(cell).join(",")];
+  S.report.rows.forEach((t) => lines.push([new Date(t.created_at).toLocaleDateString(), t.department?.name, t.department?.code, t.employee?.full_name, t.employee?.employee_no, t.item?.name, t.item?.size, t.item?.sku, t.item?.category, -t.qty_change, Number(t.unit_cost || 0).toFixed(2), (-t.qty_change * Number(t.unit_cost || 0)).toFixed(2), byName(t.performed_by), t.notes].map(cell).join(",")));
+  const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `apparel-chargebacks-${S.report.from}-to-${S.report.to}.csv`; a.click(); URL.revokeObjectURL(a.href);
+});
+
+/* =========================================================
+   ADMIN: ITEMS
+   ========================================================= */
+function renderAdminItems() {
+  const tb = $("adminItemsTable").querySelector("tbody");
+  tb.innerHTML = S.items.length ? S.items.map((i) => `<tr><td>${esc(i.name)}</td><td>${esc(i.category || "")}</td><td>${esc(i.size || "")}</td><td>${esc(i.sku)}</td><td class="num">${money(i.unit_cost)}</td><td class="num">${i.reorder_threshold}</td><td><span class="pill ${i.active ? "ok" : "off"}">${i.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-edit="${i.id}">Edit</button><button class="btn small" data-toggle="${i.id}">${i.active ? "Deactivate" : "Reactivate"}</button></td></tr>`).join("")
+    : `<tr><td colspan="8" class="empty">No items yet. Add one, or add one item per size to build out a whole product at once.</td></tr>`;
+}
+$("adminItemsTable").addEventListener("click", async (e) => {
+  const ed = e.target.closest("[data-edit]"), tg = e.target.closest("[data-toggle]");
+  if (ed) return openItemForm(S.items.find((i) => i.id === ed.dataset.edit));
+  if (tg) { const i = S.items.find((x) => x.id === tg.dataset.toggle); const { error } = await sb.from("items").update({ active: !i.active }).eq("id", i.id); if (error) return fail(error, "Couldn't update item"); toast(i.active ? "Item deactivated" : "Item reactivated"); await loadRefs(); }
+});
+$("addItemBtn").addEventListener("click", () => openItemForm(null));
+function openItemForm(it) {
+  openModal(`<h2>${it ? "Edit item" : "Add item"}</h2>
+    <div class="field"><label for="fName">Name</label><input id="fName" value="${esc(it?.name || "")}" placeholder="Hi-Vis Class 2 Vest"></div>
+    <div class="row"><div class="field"><label for="fCat">Category</label><input id="fCat" value="${esc(it?.category || "")}" placeholder="vest, shirt, jacket…" list="catList"></div><div class="field narrow"><label for="fSize">Size</label><input id="fSize" value="${esc(it?.size || "")}" placeholder="L"></div></div>
+    <datalist id="catList">${[...new Set(S.items.map((i) => i.category).filter(Boolean))].map((c) => `<option value="${esc(c)}">`).join("")}</datalist>
+    <div class="field"><label for="fSku">SKU (goes on the label)</label><input id="fSku" value="${esc(it?.sku || "")}" placeholder="HV-VEST-C2-L" style="text-transform:uppercase"></div>
+    <div class="row"><div class="field narrow"><label for="fCost">Unit cost</label><input id="fCost" type="number" step="0.01" min="0" inputmode="decimal" value="${it ? Number(it.unit_cost).toFixed(2) : ""}"></div><div class="field narrow"><label for="fThr">Reorder when at or below</label><input id="fThr" type="number" min="0" inputmode="numeric" value="${it?.reorder_threshold ?? 5}"></div></div>
+    <div class="btn-row"><button class="btn primary" id="fSave">${it ? "Save changes" : "Add item"}</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+  $("fName").focus();
+  $("fSave").addEventListener("click", async () => {
+    const row = { name: $("fName").value.trim(), category: $("fCat").value.trim() || null, size: $("fSize").value.trim() || null, sku: $("fSku").value.trim().toUpperCase(), unit_cost: Number($("fCost").value) || 0, reorder_threshold: parseInt($("fThr").value) || 0 };
+    if (!row.name || !row.sku) return toast("Name and SKU are required.", true);
+    const { error } = it ? await sb.from("items").update(row).eq("id", it.id) : await sb.from("items").insert(row);
+    if (error) return fail(error, error.code === "23505" ? "That SKU is already in use" : "Couldn't save item");
+    closeModal(); toast(it ? "Item saved" : "Item added"); await loadRefs();
+  });
+}
+$("bulkItemBtn").addEventListener("click", () => {
+  openModal(`<h2>Add one item per size</h2><p class="hint">Creates a separate item (and SKU) for every size, so each gets its own label and count.</p>
+    <div class="field"><label for="bName">Name</label><input id="bName" placeholder="Hi-Vis Class 3 Long Sleeve"></div>
+    <div class="row"><div class="field"><label for="bCat">Category</label><input id="bCat" placeholder="shirt"></div><div class="field"><label for="bPrefix">SKU prefix</label><input id="bPrefix" placeholder="HV-LS-C3" style="text-transform:uppercase"></div></div>
+    <div class="field"><label for="bSizes">Sizes, comma separated</label><input id="bSizes" value="S, M, L, XL, 2XL, 3XL"></div>
+    <div class="row"><div class="field narrow"><label for="bCost">Unit cost</label><input id="bCost" type="number" step="0.01" min="0" inputmode="decimal"></div><div class="field narrow"><label for="bThr">Reorder when at or below</label><input id="bThr" type="number" min="0" value="5"></div></div>
+    <div class="btn-row"><button class="btn primary" id="bSave">Add items</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+  $("bName").focus();
+  $("bSave").addEventListener("click", async () => {
+    const name = $("bName").value.trim(), prefix = $("bPrefix").value.trim().toUpperCase();
+    const sizes = $("bSizes").value.split(",").map((s) => s.trim()).filter(Boolean);
+    if (!name || !prefix || !sizes.length) return toast("Name, SKU prefix and at least one size are required.", true);
+    const rows = sizes.map((sz) => ({ name, category: $("bCat").value.trim() || null, size: sz, sku: `${prefix}-${sz.replace(/\s+/g, "").toUpperCase()}`, unit_cost: Number($("bCost").value) || 0, reorder_threshold: parseInt($("bThr").value) || 0 }));
+    const { error } = await sb.from("items").insert(rows);
+    if (error) return fail(error, error.code === "23505" ? "One of those SKUs already exists" : "Couldn't add items");
+    closeModal(); toast(`Added ${rows.length} items`); await loadRefs();
+  });
+});
+
+/* =========================================================
+   ADMIN: LABELS
+   ========================================================= */
+function renderLabelPicker() {
+  const el = $("labelPicker"); const prev = {}; el.querySelectorAll("input").forEach((i) => (prev[i.dataset.id] = i.value));
+  el.innerHTML = S.items.filter((i) => i.active).map((i) => `<div class="lp-name">${esc(itemLabel(i))} <span class="sub">${esc(i.sku)}</span></div><input type="number" min="0" inputmode="numeric" data-id="${i.id}" value="${prev[i.id] || 0}">`).join("") || `<div class="empty">Add items first.</div>`;
+}
+$("labelsClearBtn").addEventListener("click", () => $("labelPicker").querySelectorAll("input").forEach((i) => (i.value = 0)));
+$("labelsFiveBtn").addEventListener("click", () => $("labelPicker").querySelectorAll("input").forEach((i) => (i.value = 5)));
+$("printLabelsBtn").addEventListener("click", () => {
+  const want = []; $("labelPicker").querySelectorAll("input").forEach((inp) => { const n = parseInt(inp.value) || 0; const it = S.items.find((i) => i.id === inp.dataset.id); for (let k = 0; k < n; k++) want.push(it); });
+  if (!want.length) return toast("Set a quantity for at least one item.", true);
+  if (want.length > 600) return toast("That's more than 20 sheets. Print in smaller batches.", true);
+  const sheet = $("labelSheet"); sheet.innerHTML = "";
+  for (let p = 0; p < want.length; p += 30) {
+    const pg = document.createElement("div"); pg.className = "sheet";
+    want.slice(p, p + 30).forEach((it) => {
+      const l = document.createElement("div"); l.className = "label";
+      const qr = document.createElement("div"); qr.className = "qr";
+      new QRCode(qr, { text: it.sku, width: 79, height: 79, correctLevel: QRCode.CorrectLevel.M });
+      const t = document.createElement("div"); t.className = "t"; t.innerHTML = `<div class="n">${esc(it.name)}</div><div class="s">${esc(it.size || "")}</div><div class="k">${esc(it.sku)}</div>`;
+      l.appendChild(qr); l.appendChild(t); pg.appendChild(l);
+    });
+    sheet.appendChild(pg);
+  }
+  setTimeout(() => window.print(), 300);
+});
+
+/* =========================================================
+   ADMIN: DEPARTMENTS
+   ========================================================= */
+function renderDepts() {
+  const tb = $("deptTable").querySelector("tbody");
+  tb.innerHTML = S.departments.length ? S.departments.map((d) => `<tr><td>${esc(d.name)}</td><td>${esc(d.code || "")}</td><td><span class="pill ${d.active ? "ok" : "off"}">${d.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-dedit="${d.id}">Rename</button><button class="btn small" data-dtoggle="${d.id}">${d.active ? "Deactivate" : "Reactivate"}</button></td></tr>`).join("") : `<tr><td colspan="4" class="empty">No departments yet.</td></tr>`;
+}
+$("addDeptBtn").addEventListener("click", async () => {
+  const name = $("deptName").value.trim(); if (!name) return toast("Enter a department name.", true);
+  const { error } = await sb.from("departments").insert({ name, code: $("deptCode").value.trim() || null });
+  if (error) return fail(error, error.code === "23505" ? "That department already exists" : "Couldn't add department");
+  $("deptName").value = ""; $("deptCode").value = ""; toast("Department added"); await loadRefs();
+});
+$("deptTable").addEventListener("click", async (e) => {
+  const ed = e.target.closest("[data-dedit]"), tg = e.target.closest("[data-dtoggle]");
+  if (ed) { const d = S.departments.find((x) => x.id === ed.dataset.dedit); const name = prompt("Department name", d.name); if (name === null) return; const code = prompt("Code (leave blank for none)", d.code || ""); const { error } = await sb.from("departments").update({ name: name.trim(), code: (code || "").trim() || null }).eq("id", d.id); if (error) return fail(error, "Couldn't update"); toast("Department saved"); await loadRefs(); }
+  if (tg) { const d = S.departments.find((x) => x.id === tg.dataset.dtoggle); const { error } = await sb.from("departments").update({ active: !d.active }).eq("id", d.id); if (error) return fail(error, "Couldn't update"); await loadRefs(); }
+});
+
+/* =========================================================
+   ADMIN: EMPLOYEES
+   ========================================================= */
+$("empAdminSearch").addEventListener("input", renderEmployees);
+function renderEmployees() {
+  const q = $("empAdminSearch").value.trim().toLowerCase();
+  const rows = S.employees.filter((e) => !q || `${e.full_name} ${e.employee_no || ""} ${e.department?.name || ""}`.toLowerCase().includes(q));
+  const tb = $("empTable").querySelector("tbody");
+  tb.innerHTML = rows.length ? rows.map((e) => `<tr><td>${esc(e.full_name)}</td><td>${esc(e.employee_no || "")}</td><td>${esc(e.department?.name || "")}</td><td><span class="pill ${e.active ? "ok" : "off"}">${e.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-eedit="${e.id}">Edit</button><button class="btn small" data-etoggle="${e.id}">${e.active ? "Deactivate" : "Reactivate"}</button></td></tr>`).join("") : `<tr><td colspan="5" class="empty">${S.employees.length ? "No matches." : "No employees yet."}</td></tr>`;
+}
+$("addEmpBtn").addEventListener("click", async () => {
+  const full_name = $("empName").value.trim(); if (!full_name) return toast("Enter the employee's name.", true);
+  const { error } = await sb.from("employees").insert({ full_name, employee_no: $("empNo").value.trim() || null, department_id: $("empDept").value || null });
+  if (error) return fail(error, error.code === "23505" ? "That employee number is already in use" : "Couldn't add employee");
+  $("empName").value = ""; $("empNo").value = ""; toast("Employee added"); await loadRefs(); $("empName").focus();
+});
+$("empTable").addEventListener("click", async (e) => {
+  const ed = e.target.closest("[data-eedit]"), tg = e.target.closest("[data-etoggle]");
+  if (tg) { const emp = S.employees.find((x) => x.id === tg.dataset.etoggle); const { error } = await sb.from("employees").update({ active: !emp.active }).eq("id", emp.id); if (error) return fail(error, "Couldn't update"); await loadRefs(); }
+  if (ed) {
+    const emp = S.employees.find((x) => x.id === ed.dataset.eedit);
+    openModal(`<h2>Edit employee</h2>
+      <div class="field"><label for="eName">Full name</label><input id="eName" value="${esc(emp.full_name)}"></div>
+      <div class="field"><label for="eNo">Employee no.</label><input id="eNo" value="${esc(emp.employee_no || "")}"></div>
+      <div class="field"><label for="eDept">Home department</label><select id="eDept"><option value="">None</option>${S.departments.filter((d) => d.active || d.id === emp.department_id).map((d) => `<option value="${d.id}" ${d.id === emp.department_id ? "selected" : ""}>${esc(d.name)}</option>`).join("")}</select></div>
+      <div class="btn-row"><button class="btn primary" id="eSave">Save changes</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    $("eSave").addEventListener("click", async () => {
+      const { error } = await sb.from("employees").update({ full_name: $("eName").value.trim(), employee_no: $("eNo").value.trim() || null, department_id: $("eDept").value || null }).eq("id", emp.id);
+      if (error) return fail(error, "Couldn't save"); closeModal(); toast("Employee saved"); await loadRefs();
+    });
+  }
+});
+
+/* =========================================================
+   ADMIN: USERS
+   ========================================================= */
+async function loadUsers(quiet) {
+  const { data, error } = await sb.rpc("list_app_users");
+  if (error) { if (!quiet) fail(error, "Couldn't load users (did you run the addendum SQL?)"); return; }
+  S.users = data || [];
+  const tb = $("userTable").querySelector("tbody");
+  tb.innerHTML = S.users.length ? S.users.map((u) => `<tr><td>${esc(u.display_name || "")}</td><td>${esc(u.email)}</td><td><span class="pill ${u.role}">${u.role === "admin" ? "Admin" : "Checkout"}</span></td><td><span class="pill ${u.active ? "ok" : "off"}">${u.active ? "Active" : "Inactive"}</span></td><td class="actions">${u.user_id === S.session.user.id ? '<span class="sub">you</span>' : `<button class="btn small" data-utoggle="${u.user_id}" data-active="${u.active}">${u.active ? "Deactivate" : "Reactivate"}</button>`}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">No users listed.</td></tr>`;
+}
+$("addUserBtn").addEventListener("click", async () => {
+  const email = $("userEmail").value.trim(), name = $("userName").value.trim();
+  if (!email || !name) return toast("Email and display name are required.", true);
+  const { error } = await sb.rpc("add_app_user_by_email", { p_email: email, p_display_name: name, p_role: $("userRole").value });
+  if (error) return fail(error, "Couldn't add user");
+  $("userEmail").value = ""; $("userName").value = ""; toast("User added"); loadUsers();
+});
+$("userTable").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-utoggle]"); if (!b) return;
+  const { error } = await sb.from("app_users").update({ active: b.dataset.active !== "true" }).eq("user_id", b.dataset.utoggle);
+  if (error) return fail(error, "Couldn't update user"); loadUsers();
+});
+
+/* =========================================================
+   START
+   ========================================================= */
+sb.auth.getSession().then(({ data }) => { if (!data.session) showLogin(); });
+</script>
+</body>
+</html>
