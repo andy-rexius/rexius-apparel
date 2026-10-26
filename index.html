@@ -796,15 +796,42 @@ $("csvBtn").addEventListener("click", () => {
 });
 
 /* =========================================================
+   ADMIN: DELETE (only for inactive records with no history)
+   ========================================================= */
+async function countRefs(table, col, id) {
+  const { count, error } = await sb.from(table).select("id", { count: "exact", head: true }).eq(col, id);
+  if (error) throw error;
+  return count || 0;
+}
+async function deleteRecord(kind, id) {
+  const cfg = {
+    item:       { table: "apparel_items",       label: () => itemLabel(S.items.find((x) => x.id === id)), refs: [["apparel_transactions", "item_id", "transaction"]] },
+    department: { table: "apparel_departments", label: () => S.departments.find((x) => x.id === id).name, refs: [["apparel_transactions", "department_id", "transaction"], ["apparel_employees", "department_id", "employee"]] },
+    employee:   { table: "apparel_employees",   label: () => S.employees.find((x) => x.id === id).full_name, refs: [["apparel_transactions", "employee_id", "transaction"]] }
+  }[kind];
+  try {
+    for (const [table, col, what] of cfg.refs) {
+      const n = await countRefs(table, col, id);
+      if (n) return toast(`Can't delete ${cfg.label()}: it's on ${n} ${what}${n === 1 ? "" : "s"}. Leave it deactivated so the history stays intact.`, true);
+    }
+  } catch (e) { return fail(e, "Couldn't check history"); }
+  if (!confirm(`Delete ${cfg.label()} permanently? It has no history, so nothing else is affected.`)) return;
+  const { error } = await sb.from(cfg.table).delete().eq("id", id);
+  if (error) return fail(error, "Couldn't delete");
+  toast("Deleted"); await loadRefs();
+}
+
+/* =========================================================
    ADMIN: ITEMS
    ========================================================= */
 function renderAdminItems() {
   const tb = $("adminItemsTable").querySelector("tbody");
-  tb.innerHTML = S.items.length ? S.items.map((i) => `<tr><td>${esc(i.name)}</td><td>${esc(i.category || "")}</td><td>${esc(i.size || "")}</td><td>${esc(i.sku)}</td><td class="num">${money(i.unit_cost)}</td><td class="num">${i.reorder_threshold}</td><td><span class="pill ${i.active ? "ok" : "off"}">${i.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-edit="${i.id}">Edit</button><button class="btn small" data-toggle="${i.id}">${i.active ? "Deactivate" : "Reactivate"}</button></td></tr>`).join("")
+  tb.innerHTML = S.items.length ? S.items.map((i) => `<tr><td>${esc(i.name)}</td><td>${esc(i.category || "")}</td><td>${esc(i.size || "")}</td><td>${esc(i.sku)}</td><td class="num">${money(i.unit_cost)}</td><td class="num">${i.reorder_threshold}</td><td><span class="pill ${i.active ? "ok" : "off"}">${i.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-edit="${i.id}">Edit</button><button class="btn small" data-toggle="${i.id}">${i.active ? "Deactivate" : "Reactivate"}</button>${i.active ? "" : `<button class="btn small danger" data-delete="${i.id}">Delete</button>`}</td></tr>`).join("")
     : `<tr><td colspan="8" class="empty">No items yet. Add one, or add one item per size to build out a whole product at once.</td></tr>`;
 }
 $("adminItemsTable").addEventListener("click", async (e) => {
-  const ed = e.target.closest("[data-edit]"), tg = e.target.closest("[data-toggle]");
+  const ed = e.target.closest("[data-edit]"), tg = e.target.closest("[data-toggle]"), dl = e.target.closest("[data-delete]");
+  if (dl) return deleteRecord("item", dl.dataset.delete);
   if (ed) return openItemForm(S.items.find((i) => i.id === ed.dataset.edit));
   if (tg) { const i = S.items.find((x) => x.id === tg.dataset.toggle); const { error } = await sb.from("apparel_items").update({ active: !i.active }).eq("id", i.id); if (error) return fail(error, "Couldn't update item"); toast(i.active ? "Item deactivated" : "Item reactivated"); await loadRefs(); }
 });
@@ -878,7 +905,7 @@ $("printLabelsBtn").addEventListener("click", () => {
    ========================================================= */
 function renderDepts() {
   const tb = $("deptTable").querySelector("tbody");
-  tb.innerHTML = S.departments.length ? S.departments.map((d) => `<tr><td>${esc(d.name)}</td><td>${esc(d.code || "")}</td><td><span class="pill ${d.active ? "ok" : "off"}">${d.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-dedit="${d.id}">Rename</button><button class="btn small" data-dtoggle="${d.id}">${d.active ? "Deactivate" : "Reactivate"}</button></td></tr>`).join("") : `<tr><td colspan="4" class="empty">No departments yet.</td></tr>`;
+  tb.innerHTML = S.departments.length ? S.departments.map((d) => `<tr><td>${esc(d.name)}</td><td>${esc(d.code || "")}</td><td><span class="pill ${d.active ? "ok" : "off"}">${d.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-dedit="${d.id}">Rename</button><button class="btn small" data-dtoggle="${d.id}">${d.active ? "Deactivate" : "Reactivate"}</button>${d.active ? "" : `<button class="btn small danger" data-ddelete="${d.id}">Delete</button>`}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">No departments yet.</td></tr>`;
 }
 $("addDeptBtn").addEventListener("click", async () => {
   const name = $("deptName").value.trim(); if (!name) return toast("Enter a department name.", true);
@@ -887,7 +914,8 @@ $("addDeptBtn").addEventListener("click", async () => {
   $("deptName").value = ""; $("deptCode").value = ""; toast("Department added"); await loadRefs();
 });
 $("deptTable").addEventListener("click", async (e) => {
-  const ed = e.target.closest("[data-dedit]"), tg = e.target.closest("[data-dtoggle]");
+  const ed = e.target.closest("[data-dedit]"), tg = e.target.closest("[data-dtoggle]"), dl = e.target.closest("[data-ddelete]");
+  if (dl) return deleteRecord("department", dl.dataset.ddelete);
   if (ed) { const d = S.departments.find((x) => x.id === ed.dataset.dedit); const name = prompt("Department name", d.name); if (name === null) return; const code = prompt("Code (leave blank for none)", d.code || ""); const { error } = await sb.from("apparel_departments").update({ name: name.trim(), code: (code || "").trim() || null }).eq("id", d.id); if (error) return fail(error, "Couldn't update"); toast("Department saved"); await loadRefs(); }
   if (tg) { const d = S.departments.find((x) => x.id === tg.dataset.dtoggle); const { error } = await sb.from("apparel_departments").update({ active: !d.active }).eq("id", d.id); if (error) return fail(error, "Couldn't update"); await loadRefs(); }
 });
@@ -900,7 +928,7 @@ function renderEmployees() {
   const q = $("empAdminSearch").value.trim().toLowerCase();
   const rows = S.employees.filter((e) => !q || `${e.full_name} ${e.employee_no || ""} ${e.department?.name || ""}`.toLowerCase().includes(q));
   const tb = $("empTable").querySelector("tbody");
-  tb.innerHTML = rows.length ? rows.map((e) => `<tr><td>${esc(e.full_name)}</td><td>${esc(e.employee_no || "")}</td><td>${esc(e.department?.name || "")}</td><td><span class="pill ${e.active ? "ok" : "off"}">${e.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-eedit="${e.id}">Edit</button><button class="btn small" data-etoggle="${e.id}">${e.active ? "Deactivate" : "Reactivate"}</button></td></tr>`).join("") : `<tr><td colspan="5" class="empty">${S.employees.length ? "No matches." : "No employees yet."}</td></tr>`;
+  tb.innerHTML = rows.length ? rows.map((e) => `<tr><td>${esc(e.full_name)}</td><td>${esc(e.employee_no || "")}</td><td>${esc(e.department?.name || "")}</td><td><span class="pill ${e.active ? "ok" : "off"}">${e.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-eedit="${e.id}">Edit</button><button class="btn small" data-etoggle="${e.id}">${e.active ? "Deactivate" : "Reactivate"}</button>${e.active ? "" : `<button class="btn small danger" data-edelete="${e.id}">Delete</button>`}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">${S.employees.length ? "No matches." : "No employees yet."}</td></tr>`;
 }
 $("addEmpBtn").addEventListener("click", async () => {
   const full_name = $("empName").value.trim(); if (!full_name) return toast("Enter the employee's name.", true);
@@ -909,7 +937,8 @@ $("addEmpBtn").addEventListener("click", async () => {
   $("empName").value = ""; $("empNo").value = ""; toast("Employee added"); await loadRefs(); $("empName").focus();
 });
 $("empTable").addEventListener("click", async (e) => {
-  const ed = e.target.closest("[data-eedit]"), tg = e.target.closest("[data-etoggle]");
+  const ed = e.target.closest("[data-eedit]"), tg = e.target.closest("[data-etoggle]"), dl = e.target.closest("[data-edelete]");
+  if (dl) return deleteRecord("employee", dl.dataset.edelete);
   if (tg) { const emp = S.employees.find((x) => x.id === tg.dataset.etoggle); const { error } = await sb.from("apparel_employees").update({ active: !emp.active }).eq("id", emp.id); if (error) return fail(error, "Couldn't update"); await loadRefs(); }
   if (ed) {
     const emp = S.employees.find((x) => x.id === ed.dataset.eedit);
