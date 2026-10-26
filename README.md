@@ -5,17 +5,17 @@ Internal app for issuing branded high-vis apparel, tracking inventory, and gener
 ## Files
 
 - `index.html` — the whole app. The Supabase URL and anon key are set at the top of the `<script>` block.
-- `apparel_schema.sql` — creates the `apparel` schema, tables, inventory view, triggers and row-level security. Run once.
-- `apparel_schema_addendum.sql` — adds the two functions the Users admin screen uses. Run once, after the schema.
+- `apparel_schema_public.sql` — creates the tables (prefixed `apparel_` in the `public` schema), inventory view, triggers, row-level security and admin helper functions. Run once.
+- `later_move_to_own_schema.sql` — optional, for later: moves the tables into their own `apparel` schema once an admin exposes it.
 
 ## Supabase setup (one time)
 
-1. SQL Editor → run `apparel_schema.sql`, then `apparel_schema_addendum.sql`.
-2. Project Settings → API → Data API settings → add `apparel` to **Exposed schemas**.
+1. SQL Editor → run `apparel_schema_public.sql`.
+2. Nothing to expose: the tables live in `public`, which is already available to the API.
 3. Authentication → Users → add your own login (email + password).
 4. SQL Editor → make yourself the first admin:
    ```sql
-   insert into apparel.app_users (user_id, display_name, role)
+   insert into public.apparel_app_users (user_id, display_name, role)
    values ('<your auth user UUID>', 'Your Name', 'admin');
    ```
    Every later user can be added from inside the app (Admin → Users) once they have a login.

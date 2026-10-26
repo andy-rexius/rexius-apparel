@@ -406,7 +406,7 @@ tr.low td { background: var(--orange-soft); }
 const SUPABASE_URL = "https://hibjqcgitqtgmkurghlw.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpYmpxY2dpdHF0Z21rdXJnaGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2OTMzMzQsImV4cCI6MjEwODI2OTMzNH0.XBY8jA6HoQVMSg_jefCgI3ac-wIU4Jo2ZwbHYqiMbPU";
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: "apparel" } });
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* =========================================================
    STATE + HELPERS
@@ -458,7 +458,7 @@ function showLogin() {
 }
 
 async function boot() {
-  const { data, error } = await sb.from("app_users").select("*").eq("user_id", S.session.user.id).maybeSingle();
+  const { data, error } = await sb.from("apparel_app_users").select("*").eq("user_id", S.session.user.id).maybeSingle();
   if (error) return fail(error, "Couldn't load your account");
   if (!data || !data.active) {
     $("loginMsg").textContent = "Your login works, but this account isn't set up for the apparel app yet. Ask an admin to add you.";
@@ -477,10 +477,10 @@ async function boot() {
    ========================================================= */
 async function loadRefs() {
   const [it, inv, dp, em] = await Promise.all([
-    sb.from("items").select("*").order("name").order("size"),
-    sb.from("inventory").select("*").order("name").order("size"),
-    sb.from("departments").select("*").order("name"),
-    sb.from("employees").select("*, department:departments(name)").order("full_name")
+    sb.from("apparel_items").select("*").order("name").order("size"),
+    sb.from("apparel_inventory").select("*").order("name").order("size"),
+    sb.from("apparel_departments").select("*").order("name"),
+    sb.from("apparel_employees").select("*, department:apparel_departments(name)").order("full_name")
   ]);
   for (const r of [it, inv, dp, em]) if (r.error) return fail(r.error, "Couldn't load data");
   S.items = it.data; S.inventory = inv.data; S.departments = dp.data; S.employees = em.data;
@@ -488,7 +488,7 @@ async function loadRefs() {
   if (isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); }
 }
 async function refreshInventory() {
-  const { data, error } = await sb.from("inventory").select("*").order("name").order("size");
+  const { data, error } = await sb.from("apparel_inventory").select("*").order("name").order("size");
   if (error) return fail(error, "Couldn't refresh inventory");
   S.inventory = data; renderInventory(); updateLowBadge(); renderCart();
 }
@@ -643,7 +643,7 @@ $("confirmCheckoutBtn").addEventListener("click", async () => {
     department_id: $("deptSelect").value, employee_id: S.cartEmployee.id, performed_by: S.session.user.id,
     notes: $("coNotes").value.trim() || null
   }));
-  const { error } = await sb.from("transactions").insert(rows);
+  const { error } = await sb.from("apparel_transactions").insert(rows);
   if (error) { btn.disabled = false; return fail(error, "Checkout failed"); }
   const n = S.cart.reduce((a, l) => a + l.qty, 0);
   toast(`Checked out ${n} item${n === 1 ? "" : "s"} to ${S.cartEmployee.full_name}`);
@@ -667,7 +667,7 @@ $("confirmReceiveBtn").addEventListener("click", async () => {
   const costRaw = $("rcvCost").value.trim(); const cost = costRaw === "" ? null : Number(costRaw);
   if (cost !== null && (isNaN(cost) || cost < 0)) return toast("Unit cost must be a number.", true);
   const btn = $("confirmReceiveBtn"); btn.disabled = true;
-  const { error } = await sb.from("transactions").insert({ type: "receive", item_id: S.rcvItem.id, qty_change: qty, unit_cost: cost, performed_by: S.session.user.id, notes: $("rcvNotes").value.trim() || null });
+  const { error } = await sb.from("apparel_transactions").insert({ type: "receive", item_id: S.rcvItem.id, qty_change: qty, unit_cost: cost, performed_by: S.session.user.id, notes: $("rcvNotes").value.trim() || null });
   btn.disabled = false;
   if (error) return fail(error, "Couldn't add stock");
   toast(`Added ${qty} × ${itemLabel(S.rcvItem)}`);
@@ -712,14 +712,14 @@ function openAdjust(id) {
     const target = parseInt($("adjNew").value); if (isNaN(target) || target < 0) return toast("Enter the actual count.", true);
     const delta = target - i.on_hand; if (!delta) return closeModal();
     const notes = $("adjNotes").value.trim(); if (!notes) return toast("Give a short reason so the history makes sense later.", true);
-    const { error } = await sb.from("transactions").insert({ type: "adjust", item_id: id, qty_change: delta, performed_by: S.session.user.id, notes });
+    const { error } = await sb.from("apparel_transactions").insert({ type: "adjust", item_id: id, qty_change: delta, performed_by: S.session.user.id, notes });
     if (error) return fail(error, "Couldn't save adjustment");
     closeModal(); toast(`Set ${itemLabel(i)} to ${target}`); await refreshInventory(); loadActivity();
   });
 }
 
 async function loadActivity() {
-  const { data, error } = await sb.from("transactions").select("id, type, qty_change, unit_cost, notes, created_at, performed_by, item:items(name,size,sku), department:departments(name), employee:employees(full_name)").order("created_at", { ascending: false }).limit(60);
+  const { data, error } = await sb.from("apparel_transactions").select("id, type, qty_change, unit_cost, notes, created_at, performed_by, item:apparel_items(name,size,sku), department:apparel_departments(name), employee:apparel_employees(full_name)").order("created_at", { ascending: false }).limit(60);
   if (error) return fail(error, "Couldn't load activity");
   if (isAdmin() && !S.users.length) await loadUsers(true);
   const byName = (uid) => (S.users.find((u) => u.user_id === uid) || {}).display_name || (uid === S.session.user.id ? (S.me.display_name || "you") : "—");
@@ -733,7 +733,7 @@ async function loadActivity() {
 $("actTable").addEventListener("click", async (e) => {
   const b = e.target.closest("[data-del]"); if (!b) return;
   if (!confirm("Remove this transaction? Inventory will be recalculated.")) return;
-  const { error } = await sb.from("transactions").delete().eq("id", b.dataset.del);
+  const { error } = await sb.from("apparel_transactions").delete().eq("id", b.dataset.del);
   if (error) return fail(error, "Couldn't remove it");
   toast("Transaction removed"); await refreshInventory(); loadActivity();
 });
@@ -761,7 +761,7 @@ async function runReport() {
   const from = $("repFrom").value, to = $("repTo").value;
   if (!from || !to) return toast("Choose both dates.", true);
   const start = new Date(from + "T00:00:00"), end = new Date(to + "T00:00:00"); end.setDate(end.getDate() + 1);
-  let q = sb.from("transactions").select("id, qty_change, unit_cost, notes, created_at, performed_by, item:items(name,size,sku,category), department:departments(id,name,code), employee:employees(full_name,employee_no)")
+  let q = sb.from("apparel_transactions").select("id, qty_change, unit_cost, notes, created_at, performed_by, item:apparel_items(name,size,sku,category), department:apparel_departments(id,name,code), employee:apparel_employees(full_name,employee_no)")
     .eq("type", "checkout").gte("created_at", start.toISOString()).lt("created_at", end.toISOString()).order("created_at");
   if ($("repDept").value) q = q.eq("department_id", $("repDept").value);
   const { data, error } = await q;
@@ -806,7 +806,7 @@ function renderAdminItems() {
 $("adminItemsTable").addEventListener("click", async (e) => {
   const ed = e.target.closest("[data-edit]"), tg = e.target.closest("[data-toggle]");
   if (ed) return openItemForm(S.items.find((i) => i.id === ed.dataset.edit));
-  if (tg) { const i = S.items.find((x) => x.id === tg.dataset.toggle); const { error } = await sb.from("items").update({ active: !i.active }).eq("id", i.id); if (error) return fail(error, "Couldn't update item"); toast(i.active ? "Item deactivated" : "Item reactivated"); await loadRefs(); }
+  if (tg) { const i = S.items.find((x) => x.id === tg.dataset.toggle); const { error } = await sb.from("apparel_items").update({ active: !i.active }).eq("id", i.id); if (error) return fail(error, "Couldn't update item"); toast(i.active ? "Item deactivated" : "Item reactivated"); await loadRefs(); }
 });
 $("addItemBtn").addEventListener("click", () => openItemForm(null));
 function openItemForm(it) {
@@ -821,7 +821,7 @@ function openItemForm(it) {
   $("fSave").addEventListener("click", async () => {
     const row = { name: $("fName").value.trim(), category: $("fCat").value.trim() || null, size: $("fSize").value.trim() || null, sku: $("fSku").value.trim().toUpperCase(), unit_cost: Number($("fCost").value) || 0, reorder_threshold: parseInt($("fThr").value) || 0 };
     if (!row.name || !row.sku) return toast("Name and SKU are required.", true);
-    const { error } = it ? await sb.from("items").update(row).eq("id", it.id) : await sb.from("items").insert(row);
+    const { error } = it ? await sb.from("apparel_items").update(row).eq("id", it.id) : await sb.from("apparel_items").insert(row);
     if (error) return fail(error, error.code === "23505" ? "That SKU is already in use" : "Couldn't save item");
     closeModal(); toast(it ? "Item saved" : "Item added"); await loadRefs();
   });
@@ -839,7 +839,7 @@ $("bulkItemBtn").addEventListener("click", () => {
     const sizes = $("bSizes").value.split(",").map((s) => s.trim()).filter(Boolean);
     if (!name || !prefix || !sizes.length) return toast("Name, SKU prefix and at least one size are required.", true);
     const rows = sizes.map((sz) => ({ name, category: $("bCat").value.trim() || null, size: sz, sku: `${prefix}-${sz.replace(/\s+/g, "").toUpperCase()}`, unit_cost: Number($("bCost").value) || 0, reorder_threshold: parseInt($("bThr").value) || 0 }));
-    const { error } = await sb.from("items").insert(rows);
+    const { error } = await sb.from("apparel_items").insert(rows);
     if (error) return fail(error, error.code === "23505" ? "One of those SKUs already exists" : "Couldn't add items");
     closeModal(); toast(`Added ${rows.length} items`); await loadRefs();
   });
@@ -882,14 +882,14 @@ function renderDepts() {
 }
 $("addDeptBtn").addEventListener("click", async () => {
   const name = $("deptName").value.trim(); if (!name) return toast("Enter a department name.", true);
-  const { error } = await sb.from("departments").insert({ name, code: $("deptCode").value.trim() || null });
+  const { error } = await sb.from("apparel_departments").insert({ name, code: $("deptCode").value.trim() || null });
   if (error) return fail(error, error.code === "23505" ? "That department already exists" : "Couldn't add department");
   $("deptName").value = ""; $("deptCode").value = ""; toast("Department added"); await loadRefs();
 });
 $("deptTable").addEventListener("click", async (e) => {
   const ed = e.target.closest("[data-dedit]"), tg = e.target.closest("[data-dtoggle]");
-  if (ed) { const d = S.departments.find((x) => x.id === ed.dataset.dedit); const name = prompt("Department name", d.name); if (name === null) return; const code = prompt("Code (leave blank for none)", d.code || ""); const { error } = await sb.from("departments").update({ name: name.trim(), code: (code || "").trim() || null }).eq("id", d.id); if (error) return fail(error, "Couldn't update"); toast("Department saved"); await loadRefs(); }
-  if (tg) { const d = S.departments.find((x) => x.id === tg.dataset.dtoggle); const { error } = await sb.from("departments").update({ active: !d.active }).eq("id", d.id); if (error) return fail(error, "Couldn't update"); await loadRefs(); }
+  if (ed) { const d = S.departments.find((x) => x.id === ed.dataset.dedit); const name = prompt("Department name", d.name); if (name === null) return; const code = prompt("Code (leave blank for none)", d.code || ""); const { error } = await sb.from("apparel_departments").update({ name: name.trim(), code: (code || "").trim() || null }).eq("id", d.id); if (error) return fail(error, "Couldn't update"); toast("Department saved"); await loadRefs(); }
+  if (tg) { const d = S.departments.find((x) => x.id === tg.dataset.dtoggle); const { error } = await sb.from("apparel_departments").update({ active: !d.active }).eq("id", d.id); if (error) return fail(error, "Couldn't update"); await loadRefs(); }
 });
 
 /* =========================================================
@@ -904,13 +904,13 @@ function renderEmployees() {
 }
 $("addEmpBtn").addEventListener("click", async () => {
   const full_name = $("empName").value.trim(); if (!full_name) return toast("Enter the employee's name.", true);
-  const { error } = await sb.from("employees").insert({ full_name, employee_no: $("empNo").value.trim() || null, department_id: $("empDept").value || null });
+  const { error } = await sb.from("apparel_employees").insert({ full_name, employee_no: $("empNo").value.trim() || null, department_id: $("empDept").value || null });
   if (error) return fail(error, error.code === "23505" ? "That employee number is already in use" : "Couldn't add employee");
   $("empName").value = ""; $("empNo").value = ""; toast("Employee added"); await loadRefs(); $("empName").focus();
 });
 $("empTable").addEventListener("click", async (e) => {
   const ed = e.target.closest("[data-eedit]"), tg = e.target.closest("[data-etoggle]");
-  if (tg) { const emp = S.employees.find((x) => x.id === tg.dataset.etoggle); const { error } = await sb.from("employees").update({ active: !emp.active }).eq("id", emp.id); if (error) return fail(error, "Couldn't update"); await loadRefs(); }
+  if (tg) { const emp = S.employees.find((x) => x.id === tg.dataset.etoggle); const { error } = await sb.from("apparel_employees").update({ active: !emp.active }).eq("id", emp.id); if (error) return fail(error, "Couldn't update"); await loadRefs(); }
   if (ed) {
     const emp = S.employees.find((x) => x.id === ed.dataset.eedit);
     openModal(`<h2>Edit employee</h2>
@@ -919,7 +919,7 @@ $("empTable").addEventListener("click", async (e) => {
       <div class="field"><label for="eDept">Home department</label><select id="eDept"><option value="">None</option>${S.departments.filter((d) => d.active || d.id === emp.department_id).map((d) => `<option value="${d.id}" ${d.id === emp.department_id ? "selected" : ""}>${esc(d.name)}</option>`).join("")}</select></div>
       <div class="btn-row"><button class="btn primary" id="eSave">Save changes</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
     $("eSave").addEventListener("click", async () => {
-      const { error } = await sb.from("employees").update({ full_name: $("eName").value.trim(), employee_no: $("eNo").value.trim() || null, department_id: $("eDept").value || null }).eq("id", emp.id);
+      const { error } = await sb.from("apparel_employees").update({ full_name: $("eName").value.trim(), employee_no: $("eNo").value.trim() || null, department_id: $("eDept").value || null }).eq("id", emp.id);
       if (error) return fail(error, "Couldn't save"); closeModal(); toast("Employee saved"); await loadRefs();
     });
   }
@@ -929,7 +929,7 @@ $("empTable").addEventListener("click", async (e) => {
    ADMIN: USERS
    ========================================================= */
 async function loadUsers(quiet) {
-  const { data, error } = await sb.rpc("list_app_users");
+  const { data, error } = await sb.rpc("apparel_list_app_users");
   if (error) { if (!quiet) fail(error, "Couldn't load users (did you run the addendum SQL?)"); return; }
   S.users = data || [];
   const tb = $("userTable").querySelector("tbody");
@@ -938,13 +938,13 @@ async function loadUsers(quiet) {
 $("addUserBtn").addEventListener("click", async () => {
   const email = $("userEmail").value.trim(), name = $("userName").value.trim();
   if (!email || !name) return toast("Email and display name are required.", true);
-  const { error } = await sb.rpc("add_app_user_by_email", { p_email: email, p_display_name: name, p_role: $("userRole").value });
+  const { error } = await sb.rpc("apparel_add_app_user_by_email", { p_email: email, p_display_name: name, p_role: $("userRole").value });
   if (error) return fail(error, "Couldn't add user");
   $("userEmail").value = ""; $("userName").value = ""; toast("User added"); loadUsers();
 });
 $("userTable").addEventListener("click", async (e) => {
   const b = e.target.closest("[data-utoggle]"); if (!b) return;
-  const { error } = await sb.from("app_users").update({ active: b.dataset.active !== "true" }).eq("user_id", b.dataset.utoggle);
+  const { error } = await sb.from("apparel_app_users").update({ active: b.dataset.active !== "true" }).eq("user_id", b.dataset.utoggle);
   if (error) return fail(error, "Couldn't update user"); loadUsers();
 });
 
