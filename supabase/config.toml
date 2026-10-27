@@ -1,0 +1,10 @@
+# Minimal Supabase CLI config for this repo.
+# `supabase link --project-ref hibjqcgitqtgmkurghlw` fills in the rest locally.
+project_id = "rexius-apparel"
+
+[functions.admin-users]
+# The function verifies the caller's JWT itself (see index.ts) and also checks
+# that the caller is an active admin in apparel_app_users. Turning off gateway
+# verification lets the browser's CORS preflight (which carries no
+# Authorization header) reach the function.
+verify_jwt = false

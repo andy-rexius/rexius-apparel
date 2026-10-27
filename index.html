@@ -162,6 +162,13 @@ tr.low td { background: var(--orange-soft); }
 .group-head { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1.5px solid var(--line-strong); }
 .group-head .total { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 18px; }
 
+/* admin: users */
+.pw-row { display: flex; gap: 8px; align-items: stretch; }
+.pw-row input { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.pw-row .btn { flex: 0 0 auto; min-height: var(--tap); }
+.temp-pw { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 20px; font-weight: 600; background: var(--brand-soft); border: 1.5px solid var(--brand); border-radius: var(--radius); padding: 10px 14px; word-break: break-all; user-select: all; margin: 6px 0 12px; }
+.sub.nowrap { white-space: nowrap; }
+
 /* admin subnav */
 .subnav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
 .subnav button { min-height: 40px; padding: 6px 14px; border: 1.5px solid var(--line); background: #fff; border-radius: 20px; font-weight: 600; color: var(--ink-2); }
@@ -386,17 +393,23 @@ tr.low td { background: var(--orange-soft); }
 
       <div class="subview" id="sub-users">
         <div class="panel">
-          <h3>Add an app user</h3>
-          <p class="hint">The person needs a login first: in Supabase go to Authentication → Users → Add user with their email and a password, then add them here.</p>
+          <h3>Add a user</h3>
+          <p class="hint">Creates their login and adds them to the apparel app in one step. Give them the temporary password; they can change it later. If the email already has a login in this Supabase project (for example from another app), it is added with its existing password instead.</p>
           <div class="row">
-            <div class="field"><label for="userEmail">Email</label><input id="userEmail" type="email"></div>
-            <div class="field"><label for="userName">Display name</label><input id="userName"></div>
+            <div class="field"><label for="userEmail">Email</label><input id="userEmail" type="email" autocomplete="off" inputmode="email"></div>
+            <div class="field"><label for="userName">Display name</label><input id="userName" autocomplete="off" placeholder="Shown in the activity log"></div>
             <div class="field narrow"><label for="userRole">Role</label><select id="userRole"><option value="checkout">Checkout</option><option value="admin">Admin</option></select></div>
+          </div>
+          <div class="row">
+            <div class="field"><label for="userPass">Temporary password</label><div class="pw-row"><input id="userPass" type="text" autocomplete="off" spellcheck="false" placeholder="At least 8 characters"><button class="btn small" type="button" id="genPassBtn">Generate</button></div></div>
             <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn primary" id="addUserBtn">Add user</button></div>
           </div>
           <p class="hint">Checkout users can scan items out, receive stock and view inventory and reports. Admins can also manage items, people and users.</p>
         </div>
-        <div class="panel quiet"><div class="table-wrap"><table id="userTable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div></div>
+        <div class="panel quiet">
+          <div class="view-head" style="margin-bottom:8px"><h3>App users</h3><button class="btn small" id="refreshUsersBtn">Refresh</button></div>
+          <div class="table-wrap"><table id="userTable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody><tr><td colspan="6" class="empty">Loading…</td></tr></tbody></table></div>
+        </div>
       </div>
     </section>
   </main>
@@ -422,7 +435,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
    ========================================================= */
 const S = {
   session: null, me: null, role: null,
-  items: [], inventory: [], departments: [], employees: [], users: [],
+  items: [], inventory: [], departments: [], employees: [], users: [], adminUsers: [],
   cart: [], cartEmployee: null, rcvItem: null, scanner: null, lastScan: { code: null, t: 0 },
   report: null
 };
@@ -493,6 +506,7 @@ async function loadRefs() {
   ]);
   for (const r of [it, inv, dp, em]) if (r.error) return fail(r.error, "Couldn't load data");
   S.items = it.data; S.inventory = inv.data; S.departments = dp.data; S.employees = em.data;
+  await loadUserNames();
   renderDeptSelects(); renderInventory(); updateLowBadge(); renderCart();
   if (isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); }
 }
@@ -756,7 +770,7 @@ function openAdjust(id) {
 async function loadActivity() {
   const { data, error } = await sb.from("apparel_transactions").select("id, type, qty_change, unit_cost, notes, created_at, performed_by, item:apparel_items(name,size,sku), department:apparel_departments(name), employee:apparel_employees(full_name)").order("created_at", { ascending: false }).limit(60);
   if (error) return fail(error, "Couldn't load activity");
-  if (isAdmin() && !S.users.length) await loadUsers(true);
+  if (!S.users.length) await loadUserNames();
   const byName = (uid) => (S.users.find((u) => u.user_id === uid) || {}).display_name || (uid === S.session.user.id ? (S.me.display_name || "you") : "—");
   const tb = $("actTable").querySelector("tbody");
   tb.innerHTML = data.length ? data.map((t) => {
@@ -801,7 +815,7 @@ async function runReport() {
   if ($("repDept").value) q = q.eq("department_id", $("repDept").value);
   const { data, error } = await q;
   if (error) return fail(error, "Report failed");
-  if (isAdmin() && !S.users.length) await loadUsers(true);
+  if (!S.users.length) await loadUserNames();
   S.report = { from, to, rows: data };
   $("csvBtn").disabled = !data.length;
   const out = $("reportOut");
@@ -990,27 +1004,158 @@ $("empTable").addEventListener("click", async (e) => {
 });
 
 /* =========================================================
-   ADMIN: USERS
+   ADMIN: USERS (via the admin-users Edge Function)
+   The page never holds the service-role key: every change goes through
+   supabase/functions/admin-users, which re-checks that the caller is an
+   active admin before touching auth or apparel_app_users.
    ========================================================= */
-async function loadUsers(quiet) {
-  const { data, error } = await sb.rpc("apparel_list_app_users");
-  if (error) { if (!quiet) fail(error, "Couldn't load users (did you run the addendum SQL?)"); return; }
+const ADMIN_USERS_URL = `${SUPABASE_URL}/functions/v1/admin-users`;
+
+// Display names for the activity log and reports. Any member can read these rows.
+async function loadUserNames() {
+  const { data, error } = await sb.from("apparel_app_users").select("user_id, display_name, role, active");
+  if (error) { console.warn("Couldn't load user names", error); return; }
   S.users = data || [];
-  const tb = $("userTable").querySelector("tbody");
-  tb.innerHTML = S.users.length ? S.users.map((u) => `<tr><td>${esc(u.display_name || "")}</td><td>${esc(u.email)}</td><td><span class="pill ${u.role}">${u.role === "admin" ? "Admin" : "Checkout"}</span></td><td><span class="pill ${u.active ? "ok" : "off"}">${u.active ? "Active" : "Inactive"}</span></td><td class="actions">${u.user_id === S.session.user.id ? '<span class="sub">you</span>' : `<button class="btn small" data-utoggle="${u.user_id}" data-active="${u.active}">${u.active ? "Deactivate" : "Reactivate"}</button>`}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">No users listed.</td></tr>`;
 }
+
+async function adminUsers(action, payload = {}) {
+  const { data: { session } } = await sb.auth.getSession();   // refreshes the token if needed
+  if (!session) throw new Error("You're signed out. Sign in again.");
+  let res;
+  try {
+    res = await fetch(ADMIN_USERS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${session.access_token}` },
+      body: JSON.stringify({ action, ...payload })
+    });
+  } catch (_) { throw new Error("Couldn't reach the admin-users function. Is it deployed?"); }
+  let body = {};
+  try { body = await res.json(); } catch (_) {}
+  if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
+  return body;
+}
+
+function generatePassword(len = 14) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";   // no 0/O, 1/l/I look-alikes
+  const buf = new Uint32Array(len); crypto.getRandomValues(buf);
+  return Array.from(buf, (n) => alphabet[n % alphabet.length]).join("");
+}
+const fmtSignIn = (iso) => iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) + " " + new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "Never";
+const userLabel = (u) => u.display_name ? `${u.display_name} (${u.email})` : u.email;
+
+async function loadUsers(quiet) {
+  if (!isAdmin()) return;
+  try {
+    const { users } = await adminUsers("list");
+    S.adminUsers = users || [];
+    S.users = S.adminUsers.map((u) => ({ user_id: u.user_id, display_name: u.display_name, role: u.role, active: u.active }));
+  } catch (e) {
+    if (!quiet) fail(e, "Couldn't load users");
+    $("userTable").querySelector("tbody").innerHTML = `<tr><td colspan="6" class="empty">Couldn't load users. ${esc(e.message)}</td></tr>`;
+    return;
+  }
+  renderUsers();
+}
+function renderUsers() {
+  const me = S.session.user.id;
+  const tb = $("userTable").querySelector("tbody");
+  tb.innerHTML = S.adminUsers.length ? S.adminUsers.map((u) => {
+    const self = u.user_id === me;
+    const btn = (act, label, cls = "") => `<button class="btn small ${cls}" data-uact="${act}" data-id="${u.user_id}">${label}</button>`;
+    const actions = self
+      ? `<span class="sub nowrap">you</span> ${btn("rename", "Rename")}`
+      : `${btn("role", "Change role")}${btn("rename", "Rename")}${btn("password", "Reset password")}${u.active ? btn("deactivate", "Deactivate", "danger") : btn("reactivate", "Reactivate")}`;
+    return `<tr><td>${esc(u.display_name || "")}</td><td>${esc(u.email)}</td><td><span class="pill ${u.role}">${u.role === "admin" ? "Admin" : "Checkout"}</span></td><td><span class="pill ${u.active ? "ok" : "off"}">${u.active ? "Active" : "Inactive"}</span></td><td class="sub nowrap">${esc(fmtSignIn(u.last_sign_in_at))}</td><td class="actions">${actions}</td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">No users listed.</td></tr>`;
+}
+$("refreshUsersBtn").addEventListener("click", () => loadUsers());
+$("genPassBtn").addEventListener("click", () => { $("userPass").value = generatePassword(); });
+
+function showTempPassword(title, email, password, note) {
+  openModal(`<h2>${esc(title)}</h2>
+    <p>Give this temporary password to <strong>${esc(email)}</strong>. It is shown only once.</p>
+    <div class="temp-pw" id="tempPw">${esc(password)}</div>
+    ${note ? `<p class="hint">${esc(note)}</p>` : ""}
+    <div class="btn-row"><button class="btn primary" id="copyPwBtn">Copy password</button><button class="btn" onclick="closeModal()">Done</button></div>`);
+  $("copyPwBtn").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(password); toast("Copied"); }
+    catch (_) { const r = document.createRange(); r.selectNodeContents($("tempPw")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Select and copy the password", true); }
+  });
+}
+
 $("addUserBtn").addEventListener("click", async () => {
-  const email = $("userEmail").value.trim(), name = $("userName").value.trim();
-  if (!email || !name) return toast("Email and display name are required.", true);
-  const { error } = await sb.rpc("apparel_add_app_user_by_email", { p_email: email, p_display_name: name, p_role: $("userRole").value });
-  if (error) return fail(error, "Couldn't add user");
-  $("userEmail").value = ""; $("userName").value = ""; toast("User added"); loadUsers();
+  const email = $("userEmail").value.trim(), display_name = $("userName").value.trim(), password = $("userPass").value, role = $("userRole").value;
+  if (!email) return toast("Enter an email address.", true);
+  if (!display_name) return toast("Enter a display name.", true);
+  if (password.length < 8) return toast("Temporary password must be at least 8 characters (use Generate).", true);
+  const btn = $("addUserBtn"); btn.disabled = true;
+  try {
+    const r = await adminUsers("create", { email, display_name, password, role });
+    $("userEmail").value = ""; $("userName").value = ""; $("userPass").value = ""; $("userRole").value = "checkout";
+    if (r.created_login) showTempPassword("User added", r.email, password, "They can sign in right away with this password.");
+    else { toast(r.message || "User added"); }
+    await loadUsers();
+  } catch (e) { fail(e, "Couldn't add user"); }
+  btn.disabled = false;
 });
-$("userTable").addEventListener("click", async (e) => {
-  const b = e.target.closest("[data-utoggle]"); if (!b) return;
-  const { error } = await sb.from("apparel_app_users").update({ active: b.dataset.active !== "true" }).eq("user_id", b.dataset.utoggle);
-  if (error) return fail(error, "Couldn't update user"); loadUsers();
+
+$("userTable").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-uact]"); if (!b) return;
+  const u = S.adminUsers.find((x) => x.user_id === b.dataset.id); if (!u) return;
+  ({ role: openChangeRole, rename: openRename, password: openResetPassword, deactivate: openSetActive, reactivate: openSetActive })[b.dataset.uact](u);
 });
+
+function openChangeRole(u) {
+  openModal(`<h2>Change role</h2><p>${esc(userLabel(u))}</p>
+    <div class="field"><label for="crRole">New role</label><select id="crRole"><option value="checkout" ${u.role === "checkout" ? "selected" : ""}>Checkout</option><option value="admin" ${u.role === "admin" ? "selected" : ""}>Admin</option></select></div>
+    <p class="hint">Admins can manage items, departments, employees and users, adjust counts and undo transactions.</p>
+    <div class="btn-row"><button class="btn primary" id="crSave">Save role</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+  $("crSave").addEventListener("click", async () => {
+    const role = $("crRole").value; if (role === u.role) return closeModal();
+    if (!confirm(`Make ${userLabel(u)} ${role === "admin" ? "an admin" : "a checkout user"}?`)) return;
+    try { await adminUsers("set_role", { user_id: u.user_id, role }); closeModal(); toast("Role updated"); await loadUsers(); }
+    catch (e) { fail(e, "Couldn't change role"); }
+  });
+}
+function openRename(u) {
+  openModal(`<h2>Rename</h2><p>${esc(u.email)}</p>
+    <div class="field"><label for="rnName">Display name</label><input id="rnName" value="${esc(u.display_name || "")}"></div>
+    <div class="btn-row"><button class="btn primary" id="rnSave">Save</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+  $("rnName").focus();
+  $("rnSave").addEventListener("click", async () => {
+    const display_name = $("rnName").value.trim(); if (!display_name) return toast("Enter a name.", true);
+    try {
+      await adminUsers("set_display_name", { user_id: u.user_id, display_name });
+      if (u.user_id === S.session.user.id) { S.me.display_name = display_name; $("whoName").textContent = display_name; }
+      closeModal(); toast("Name saved"); await loadUsers();
+    } catch (e) { fail(e, "Couldn't rename"); }
+  });
+}
+function openResetPassword(u) {
+  openModal(`<h2>Reset password</h2><p>${esc(userLabel(u))}</p>
+    <div class="field"><label for="rpPass">New temporary password</label><div class="pw-row"><input id="rpPass" type="text" autocomplete="off" spellcheck="false" value="${esc(generatePassword())}"><button class="btn small" type="button" id="rpGen">Generate</button></div></div>
+    <p class="hint">Their current password stops working immediately. Any device still signed in keeps working until its session expires.</p>
+    <div class="btn-row"><button class="btn primary" id="rpSave">Reset password</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+  $("rpGen").addEventListener("click", () => { $("rpPass").value = generatePassword(); });
+  $("rpSave").addEventListener("click", async () => {
+    const password = $("rpPass").value; if (password.length < 8) return toast("Password must be at least 8 characters.", true);
+    if (!confirm(`Reset the password for ${userLabel(u)}?`)) return;
+    try { await adminUsers("reset_password", { user_id: u.user_id, password }); showTempPassword("Password reset", u.email, password); }
+    catch (e) { fail(e, "Couldn't reset password"); }
+  });
+}
+function openSetActive(u) {
+  const deactivating = u.active;
+  openModal(`<h2>${deactivating ? "Deactivate" : "Reactivate"} user</h2><p>${esc(userLabel(u))}</p>
+    <p class="hint">${deactivating
+      ? "They will be signed out of the apparel app on their next action and can't sign in to it until reactivated. Their history stays intact. Their login itself is kept, since this Supabase project is shared with other apps."
+      : "They will be able to sign in to the apparel app again with their existing password."}</p>
+    <div class="btn-row"><button class="btn ${deactivating ? "danger" : "primary"}" id="saBtn">${deactivating ? "Deactivate" : "Reactivate"}</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+  $("saBtn").addEventListener("click", async () => {
+    try { await adminUsers(deactivating ? "deactivate" : "reactivate", { user_id: u.user_id }); closeModal(); toast(deactivating ? "User deactivated" : "User reactivated"); await loadUsers(); }
+    catch (e) { fail(e, deactivating ? "Couldn't deactivate" : "Couldn't reactivate"); }
+  });
+}
 
 /* =========================================================
    START

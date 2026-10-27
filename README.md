@@ -5,7 +5,10 @@ Internal app for issuing branded high-vis apparel, tracking inventory, and gener
 ## Files
 
 - `index.html` — the whole app. The Supabase URL and anon key are set at the top of the `<script>` block.
-- `apparel_schema_public.sql` — creates the tables (prefixed `apparel_` in the `public` schema), inventory view, triggers, row-level security and admin helper functions. Run once.
+- `apparel_schema_public.sql` — creates the tables (prefixed `apparel_` in the `public` schema), inventory view, triggers and the original row-level security. Run once.
+- `supabase/migrations/20261027120000_apparel_rls.sql` — the current row-level security: locks every `apparel_*` table to members of `apparel_app_users` (the Supabase project is shared with another app) and adds the helper functions the user-management function needs. Supersedes the RLS section of `apparel_schema_public.sql`; safe to re-run.
+- `supabase/functions/admin-users/index.ts` — Edge Function that lets admins create logins, change roles, reset passwords and deactivate/reactivate apparel users without the service-role key ever reaching the browser.
+- `supabase/config.toml` — Supabase CLI config (turns off gateway JWT checks for `admin-users`, which verifies the token itself).
 - `later_move_to_own_schema.sql` — optional, for later: moves the tables into their own `apparel` schema once an admin exposes it.
 
 ## Supabase setup (one time)
@@ -13,12 +16,59 @@ Internal app for issuing branded high-vis apparel, tracking inventory, and gener
 1. SQL Editor → run `apparel_schema_public.sql`.
 2. Nothing to expose: the tables live in `public`, which is already available to the API.
 3. Authentication → Users → add your own login (email + password).
-4. SQL Editor → make yourself the first admin:
+4. SQL Editor → make yourself the first admin (by email, no UUID needed):
    ```sql
-   insert into public.apparel_app_users (user_id, display_name, role)
-   values ('<your auth user UUID>', 'Your Name', 'admin');
+   insert into public.apparel_app_users (user_id, display_name, role, active)
+   select id, 'Your Name', 'admin', true
+   from auth.users where lower(email) = lower('you@rexius.com')
+   on conflict (user_id) do update set role = 'admin', active = true;
    ```
-   Every later user can be added from inside the app (Admin → Users) once they have a login.
+   Every later user is created from inside the app (Admin → Users) once the steps below are done.
+
+## User management: RLS migration + Edge Function
+
+The Supabase project (`hibjqcgitqtgmkurghlw`) is shared with the applicant-tracker app, so the apparel tables are locked down to rows in `apparel_app_users`, and user administration goes through an Edge Function instead of the browser holding any privileged key. Both steps work with a **Developer** role on the Supabase org; nothing needs project-settings access.
+
+### 1. Run the RLS migration (SQL editor)
+
+1. Supabase dashboard → **SQL Editor** → New query.
+2. Paste the whole of `supabase/migrations/20261027120000_apparel_rls.sql` and run it. It is idempotent: it drops the earlier policies by name and recreates everything, so re-running after a change is fine.
+3. If this is a fresh project, uncomment the bootstrap block at the bottom (or use the insert in step 4 above) to make the first admin.
+
+What it sets up:
+
+| Who | Can |
+|---|---|
+| Active member (any role) | read everything; insert/update items, inventory, departments, employees, transactions |
+| Active admin | all of the above plus delete, and insert/update/delete rows in `apparel_app_users` (never their own row) |
+| Anyone else (incl. other-app logins) | nothing |
+
+`apparel_inventory` is a view with `security_invoker`, so it inherits the item/transaction policies. The migration also creates two helpers that only the service role can call (`apparel_auth_user_id_by_email`, `apparel_admin_list_users`); the function below relies on them, so run the migration before deploying.
+
+### 2. Deploy the `admin-users` Edge Function (Supabase CLI)
+
+Install the CLI once (`npm i -g supabase` or `brew install supabase/tap/supabase`), then from the repo root:
+
+```sh
+supabase login                                      # opens the browser; nothing to paste anywhere
+supabase link --project-ref hibjqcgitqtgmkurghlw   # creates supabase/.temp (git-ignored)
+supabase functions deploy admin-users
+```
+
+`supabase/config.toml` sets `verify_jwt = false` for this function so the browser's CORS preflight gets through; the function verifies the caller's token itself and then checks that they are an active admin in `apparel_app_users`. If your CLI version ignores the config file, add `--no-verify-jwt` to the deploy command.
+
+The function uses only the `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` variables that Supabase injects automatically. No secrets are stored in the repo. Requests are accepted from `https://andy-rexius.github.io`; to test from another origin, set an optional secret `APPAREL_EXTRA_ORIGINS` (comma-separated) with `supabase secrets set`.
+
+Re-run `supabase functions deploy admin-users` whenever `index.ts` changes. Logs are under Edge Functions → admin-users → Logs in the dashboard.
+
+### What admins can do in the app
+
+Admin → **Users**:
+
+- **Add user** — email, display name, role and a temporary password (Generate button). The login is created with the email pre-confirmed and the person is added to the app in one step. If the email already has a login in this project (from the other app), it is added with its existing password and no password is changed.
+- **Change role**, **Rename**, **Reset password** (shows the new temporary password once), **Deactivate / Reactivate**.
+- Deactivating only flips the apparel `active` flag. The auth user is not banned, because the same login may be in use by the other app.
+- An admin cannot change their own role or deactivate themselves; another admin has to do that.
 
 ## Deploy to GitHub Pages
 
@@ -27,7 +77,7 @@ Internal app for issuing branded high-vis apparel, tracking inventory, and gener
 3. Repo → Settings → Pages → Source: "Deploy from a branch" → branch `main`, folder `/ (root)` → Save.
 4. After a minute the site is live at `https://<org-or-user>.github.io/<repo>/`. Open it on a phone, sign in, and allow camera access when prompted.
 
-The anon key is safe to publish: it only grants what the row-level security policies allow, and nothing is readable without an authenticated login that has been added to `apparel.app_users`.
+The anon key is safe to publish: it only grants what the row-level security policies allow, and nothing is readable without an authenticated login that has an active row in `apparel_app_users`.
 
 ## First-time data entry
 
