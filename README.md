@@ -5,20 +5,19 @@ Internal app for issuing branded high-vis apparel, tracking inventory, and gener
 ## Files
 
 - `index.html` — the whole app. The Supabase URL and anon key are set at the top of the `<script>` block.
-- `apparel_schema_public.sql` — creates the tables (prefixed `apparel_` in the `public` schema), inventory view, triggers and the original row-level security. Run once.
-- `supabase/migrations/20261027120000_apparel_rls.sql` — the current row-level security: locks every `apparel_*` table to members of `apparel_app_users` (the Supabase project is shared with another app) and adds the helper functions the user-management function needs. Supersedes the RLS section of `apparel_schema_public.sql`; safe to re-run.
+- `supabase/migrations/20261027170000_move_to_apparel_schema.sql` — **current layout**: everything lives in its own `apparel` schema (`apparel.items`, `apparel.transactions`, …). Run once after an admin has exposed the `apparel` schema under Project Settings → Data API. Older scripts are kept in `sql_history/` for reference only.
+- `supabase/migrations/20261027120000_apparel_rls.sql` — (historical, `public` schema) the row-level security: locks every apparel table to members of `app_users` (the Supabase project is shared with another app) and adds the helper functions the user-management function needs. Supersedes the RLS section of `apparel_schema_public.sql`; safe to re-run.
 - `supabase/functions/admin-users/index.ts` — Edge Function that lets admins create logins, change roles, reset passwords and deactivate/reactivate apparel users without the service-role key ever reaching the browser.
 - `supabase/config.toml` — Supabase CLI config (turns off gateway JWT checks for `admin-users`, which verifies the token itself).
-- `later_move_to_own_schema.sql` — optional, for later: moves the tables into their own `apparel` schema once an admin exposes it.
 
 ## Supabase setup (one time)
 
-1. SQL Editor → run `apparel_schema_public.sql`.
+1. SQL Editor → run `sql_history/apparel_schema_public.sql`, then the three files in `supabase/migrations/` in date order. (An existing project that is already on the `apparel` schema needs none of this.)
 2. Nothing to expose: the tables live in `public`, which is already available to the API.
 3. Authentication → Users → add your own login (email + password).
 4. SQL Editor → make yourself the first admin (by email, no UUID needed):
    ```sql
-   insert into public.apparel_app_users (user_id, display_name, role, active)
+   insert into apparel.app_users (user_id, display_name, role, active)
    select id, 'Your Name', 'admin', true
    from auth.users where lower(email) = lower('you@rexius.com')
    on conflict (user_id) do update set role = 'admin', active = true;
@@ -27,7 +26,7 @@ Internal app for issuing branded high-vis apparel, tracking inventory, and gener
 
 ## User management: RLS migration + Edge Function
 
-The Supabase project (`hibjqcgitqtgmkurghlw`) is shared with the applicant-tracker app, so the apparel tables are locked down to rows in `apparel_app_users`, and user administration goes through an Edge Function instead of the browser holding any privileged key. Both steps work with a **Developer** role on the Supabase org; nothing needs project-settings access.
+The Supabase project (`hibjqcgitqtgmkurghlw`) is shared with the applicant-tracker app, so the apparel tables are locked down to rows in `apparel.app_users`, and user administration goes through an Edge Function instead of the browser holding any privileged key. Both steps work with a **Developer** role on the Supabase org; nothing needs project-settings access.
 
 ### 1. Run the RLS migration (SQL editor)
 
@@ -41,12 +40,12 @@ What it sets up:
 | Who | Can |
 |---|---|
 | Active member with role `checkout` | read everything (needed for on-hand counts); add employees; record checkout transactions stamped with their own id |
-| Active admin | all of the above plus receive/adjust transactions, edit and delete items, departments, employees and transactions, and insert/update/delete rows in `apparel_app_users` (never their own row) |
+| Active admin | all of the above plus receive/adjust transactions, edit and delete items, departments, employees and transactions, and insert/update/delete rows in `apparel.app_users` (never their own row) |
 | Anyone else (incl. other-app logins) | nothing |
 
 The second migration, `supabase/migrations/20261027150000_apparel_checkout_role_lockdown.sql`, is what narrows the checkout role to the first row above. Run it after the first one, the same way. In the app, checkout users see only the **Check out** and **Inventory** tabs; Receive, Reports and Admin are hidden.
 
-`apparel_inventory` is a view with `security_invoker`, so it inherits the item/transaction policies. The migration also creates two helpers that only the service role can call (`apparel_auth_user_id_by_email`, `apparel_admin_list_users`); the function below relies on them, so run the migration before deploying.
+`apparel.inventory` is a view with `security_invoker`, so it inherits the item/transaction policies. The migration also creates two helpers that only the service role can call (`apparel.auth_user_id_by_email`, `apparel.admin_list_users`); the function below relies on them, so run the migration before deploying.
 
 ### 2. Deploy the `admin-users` Edge Function (Supabase CLI)
 
@@ -58,7 +57,7 @@ supabase link --project-ref hibjqcgitqtgmkurghlw   # creates supabase/.temp (git
 supabase functions deploy admin-users
 ```
 
-`supabase/config.toml` sets `verify_jwt = false` for this function so the browser's CORS preflight gets through; the function verifies the caller's token itself and then checks that they are an active admin in `apparel_app_users`. If your CLI version ignores the config file, add `--no-verify-jwt` to the deploy command.
+`supabase/config.toml` sets `verify_jwt = false` for this function so the browser's CORS preflight gets through; the function verifies the caller's token itself and then checks that they are an active admin in `apparel.app_users`. If your CLI version ignores the config file, add `--no-verify-jwt` to the deploy command.
 
 The function uses only the `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` variables that Supabase injects automatically. No secrets are stored in the repo. Requests are accepted from `https://andy-rexius.github.io`; to test from another origin, set an optional secret `APPAREL_EXTRA_ORIGINS` (comma-separated) with `supabase secrets set`.
 
@@ -80,7 +79,7 @@ Admin → **Users**:
 3. Repo → Settings → Pages → Source: "Deploy from a branch" → branch `main`, folder `/ (root)` → Save.
 4. After a minute the site is live at `https://<org-or-user>.github.io/<repo>/`. Open it on a phone, sign in, and allow camera access when prompted.
 
-The anon key is safe to publish: it only grants what the row-level security policies allow, and nothing is readable without an authenticated login that has an active row in `apparel_app_users`.
+The anon key is safe to publish: it only grants what the row-level security policies allow, and nothing is readable without an authenticated login that has an active row in `apparel.app_users`.
 
 ## First-time data entry
 
