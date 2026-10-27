@@ -33,15 +33,18 @@ The Supabase project (`hibjqcgitqtgmkurghlw`) is shared with the applicant-track
 
 1. Supabase dashboard → **SQL Editor** → New query.
 2. Paste the whole of `supabase/migrations/20261027120000_apparel_rls.sql` and run it. It is idempotent: it drops the earlier policies by name and recreates everything, so re-running after a change is fine.
+   Then do the same with `supabase/migrations/20261027150000_apparel_checkout_role_lockdown.sql`.
 3. If this is a fresh project, uncomment the bootstrap block at the bottom (or use the insert in step 4 above) to make the first admin.
 
 What it sets up:
 
 | Who | Can |
 |---|---|
-| Active member (any role) | read everything; insert/update items, inventory, departments, employees, transactions |
-| Active admin | all of the above plus delete, and insert/update/delete rows in `apparel_app_users` (never their own row) |
+| Active member with role `checkout` | read everything (needed for on-hand counts); add employees; record checkout transactions stamped with their own id |
+| Active admin | all of the above plus receive/adjust transactions, edit and delete items, departments, employees and transactions, and insert/update/delete rows in `apparel_app_users` (never their own row) |
 | Anyone else (incl. other-app logins) | nothing |
+
+The second migration, `supabase/migrations/20261027150000_apparel_checkout_role_lockdown.sql`, is what narrows the checkout role to the first row above. Run it after the first one, the same way. In the app, checkout users see only the **Check out** and **Inventory** tabs; Receive, Reports and Admin are hidden.
 
 `apparel_inventory` is a view with `security_invoker`, so it inherits the item/transaction policies. The migration also creates two helpers that only the service role can call (`apparel_auth_user_id_by_email`, `apparel_admin_list_users`); the function below relies on them, so run the migration before deploying.
 

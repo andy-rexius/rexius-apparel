@@ -243,9 +243,9 @@ tr.low td { background: var(--orange-soft); }
   </header>
   <nav class="tabs" id="tabs">
     <button data-view="checkout" class="active">Check out</button>
-    <button data-view="receive">Receive</button>
+    <button data-view="receive" id="receiveTab" style="display:none">Receive</button>
     <button data-view="inventory">Inventory<span class="badge" id="lowBadge" style="display:none"></span></button>
-    <button data-view="reports">Reports</button>
+    <button data-view="reports" id="reportsTab" style="display:none">Reports</button>
     <button data-view="admin" id="adminTab" style="display:none">Admin</button>
   </nav>
 
@@ -404,7 +404,7 @@ tr.low td { background: var(--orange-soft); }
             <div class="field"><label for="userPass">Temporary password</label><div class="pw-row"><input id="userPass" type="text" autocomplete="off" spellcheck="false" placeholder="At least 8 characters"><button class="btn small" type="button" id="genPassBtn">Generate</button></div></div>
             <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn primary" id="addUserBtn">Add user</button></div>
           </div>
-          <p class="hint">Checkout users can scan items out, receive stock and view inventory and reports. Admins can also manage items, people and users.</p>
+          <p class="hint">Checkout users can scan items out to employees (adding a new employee on the spot if needed) and see what's in stock. Admins can also receive stock, adjust counts, undo transactions, run reports and manage items, departments, employees and users.</p>
         </div>
         <div class="panel quiet">
           <div class="view-head" style="margin-bottom:8px"><h3>App users</h3><button class="btn small" id="refreshUsersBtn">Refresh</button></div>
@@ -488,7 +488,7 @@ async function boot() {
   }
   S.me = data; S.role = data.role;
   $("whoName").textContent = data.display_name || S.session.user.email;
-  $("adminTab").style.display = isAdmin() ? "" : "none";
+  ["receiveTab", "reportsTab", "adminTab"].forEach((id) => { $(id).style.display = isAdmin() ? "" : "none"; });   // admin-only tabs
   $("loginView").style.display = "none"; $("appShell").style.display = "flex";
   await loadRefs();
   showView("checkout");
@@ -525,7 +525,9 @@ function updateLowBadge() {
    NAVIGATION
    ========================================================= */
 $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) showView(b.dataset.view); });
+const ADMIN_VIEWS = ["receive", "reports", "admin"];
 async function showView(name) {
+  if (ADMIN_VIEWS.includes(name) && !isAdmin()) name = "checkout";
   if (name !== "checkout") await stopScanner();
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + name));
@@ -1108,7 +1110,7 @@ $("userTable").addEventListener("click", (e) => {
 function openChangeRole(u) {
   openModal(`<h2>Change role</h2><p>${esc(userLabel(u))}</p>
     <div class="field"><label for="crRole">New role</label><select id="crRole"><option value="checkout" ${u.role === "checkout" ? "selected" : ""}>Checkout</option><option value="admin" ${u.role === "admin" ? "selected" : ""}>Admin</option></select></div>
-    <p class="hint">Admins can manage items, departments, employees and users, adjust counts and undo transactions.</p>
+    <p class="hint">Checkout users can only scan items out and add employees. Admins can also receive stock, adjust counts, undo transactions, run reports and manage items, departments, employees and users.</p>
     <div class="btn-row"><button class="btn primary" id="crSave">Save role</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
   $("crSave").addEventListener("click", async () => {
     const role = $("crRole").value; if (role === u.role) return closeModal();
