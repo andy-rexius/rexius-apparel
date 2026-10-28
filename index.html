@@ -117,6 +117,16 @@ main { flex: 1; padding: 18px 16px calc(28px + env(safe-area-inset-bottom, 0px))
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .nested { border: 1.5px solid var(--line); border-radius: var(--radius); padding: 12px 12px 0; margin-bottom: 12px; background: #FAFBFA; }
 .field input[type=file] { padding: 8px; }
+.review td { vertical-align: top; }
+.review input[type=number] { width: 92px; }
+.review select { max-width: 260px; }
+.review .meta { font-size: 13px; color: var(--mute); }
+.review tr.skipped td { opacity: .45; }
+.pill.known { background: var(--lime-soft); color: var(--ink); }
+.pill.suggested { background: var(--orange-soft); color: var(--ink); }
+.pill.unmatched { background: var(--red); color: #fff; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; }
+.check input { width: 18px; height: 18px; }
 .linkish { background: none; border: 0; padding: 0; color: var(--green-deep); font-weight: 600; text-decoration: underline; cursor: pointer; font-size: inherit; }
 
 /* tables */
@@ -305,6 +315,18 @@ tr.low td { background: var(--orange-soft); }
     <section class="view" id="view-receive">
       <div class="view-head"><h2>Receive stock</h2><span class="sub">Add incoming orders to inventory.</span></div>
       <div class="panel">
+        <h3>Receive from an invoice</h3>
+        <p class="hint">Upload the vendor's invoice. Its lines are read and matched to your items for you to check; nothing is added to inventory until you confirm.</p>
+        <div class="row">
+          <div class="field"><label for="aiFile">Scan or PDF</label><input id="aiFile" type="file" accept="application/pdf,image/*"></div>
+          <div class="field"><label for="aiVendor">Vendor (optional)</label><input id="aiVendor" list="vendorList" placeholder="Read from the invoice if blank" autocomplete="off"><datalist id="vendorList"></datalist></div>
+          <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn primary" id="aiReadBtn">Read invoice</button></div>
+        </div>
+        <div id="aiStatus" class="hint" style="display:none;margin-bottom:12px"></div>
+        <div id="aiReview" style="display:none"></div>
+      </div>
+      <div class="panel">
+        <h3>Receive one item</h3>
         <div class="field"><label for="rcvSearch">Item</label><input id="rcvSearch" placeholder="Type a name, size or SKU" autocomplete="off"></div>
         <div class="picklist" id="rcvList" style="display:none"></div>
         <div id="rcvChosen" class="hint" style="margin:-6px 0 12px"></div>
@@ -431,8 +453,13 @@ tr.low td { background: var(--orange-soft); }
           <button class="btn primary" id="addInvBtn">Save invoice</button>
         </div>
         <div class="panel quiet">
-          <div class="field"><label for="invSearch">Search</label><input id="invSearch" placeholder="Vendor, invoice number or notes" autocomplete="off"></div>
-          <div class="table-wrap"><table id="invTable"><thead><tr><th>Date</th><th>Vendor</th><th>Invoice no.</th><th class="num">Total</th><th class="num">Lines received</th><th>Added by</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div class="field"><label for="invoicesSearch">Search</label><input id="invoicesSearch" placeholder="Vendor, invoice number or notes" autocomplete="off"></div>
+          <div class="table-wrap"><table id="invoicesTable"><thead><tr><th>Date</th><th>Vendor</th><th>Invoice no.</th><th class="num">Total</th><th class="num">Lines received</th><th>Added by</th><th></th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="panel quiet">
+          <h3>Vendor line matches</h3>
+          <p class="hint">How each vendor's invoice lines map to your items. A match is saved when you confirm it on the Receive tab and is reused on the next invoice from that vendor. Delete one if the vendor changes what that line means.</p>
+          <div class="table-wrap"><table id="aliasTable"><thead><tr><th>Vendor</th><th>Vendor line</th><th>Our item</th><th class="num">Used</th><th></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
 
@@ -480,7 +507,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema
    ========================================================= */
 const S = {
   session: null, me: null, role: null,
-  items: [], inventory: [], departments: [], employees: [], users: [], adminUsers: [], invoices: [],
+  items: [], inventory: [], departments: [], employees: [], users: [], adminUsers: [], invoices: [], aliases: [], ai: null,
   cart: [], cartEmployee: null, rcvItem: null, scanner: null, lastScan: { code: null, t: 0 },
   report: null
 };
@@ -553,7 +580,7 @@ async function loadRefs() {
   S.items = it.data; S.inventory = inv.data; S.departments = dp.data; S.employees = em.data;
   await loadUserNames();
   renderDeptSelects(); renderInventory(); updateLowBadge(); renderCart();
-  if (isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); await loadInvoices(); }
+  if (isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); await loadInvoices(); await loadAliases(); }
 }
 async function refreshInventory() {
   const { data, error } = await sb.from("inventory").select("*").order("name").order("size");
@@ -578,7 +605,7 @@ async function showView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "inventory") { await refreshInventory(); loadActivity(); }
   if (name === "reports") { populateReportDepts(); if (!$("repFrom").value) setRange("month"); }
-  if (name === "admin" && isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); loadUsers(); loadInvoices(); }
+  if (name === "admin" && isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); loadUsers(); loadInvoices(); loadAliases(); }
   window.scrollTo(0, 0);
 }
 $("adminNav").addEventListener("click", (e) => {
@@ -780,6 +807,157 @@ $("confirmReceiveBtn").addEventListener("click", async () => {
 $("rcvInvoice").addEventListener("change", () => { $("rcvNewInvoice").style.display = $("rcvInvoice").value === "__new" ? "" : "none"; });
 
 /* =========================================================
+   RECEIVE FROM AN INVOICE (admin only; uses the invoice-extract function)
+   ========================================================= */
+const INVOICE_EXTRACT_URL = `${SUPABASE_URL}/functions/v1/invoice-extract`;
+const normKey = (s) => String(s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+async function callFunction(url, payload, name) {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) throw new Error("You're signed out. Sign in again.");
+  let res;
+  try {
+    res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${session.access_token}` }, body: JSON.stringify(payload) });
+  } catch (_) { throw new Error(`Couldn't reach the ${name} function. Is it deployed?`); }
+  let body = {};
+  try { body = await res.json(); } catch (_) {}
+  if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
+  return body;
+}
+function aiStatus(msg) { const el = $("aiStatus"); el.style.display = msg ? "" : "none"; el.textContent = msg || ""; }
+function renderVendorList() {
+  const names = [...new Set([...S.invoices.map((v) => v.vendor), ...S.aliases.map((a) => a.vendor)])].filter(Boolean).sort();
+  $("vendorList").innerHTML = names.map((n) => `<option value="${esc(n)}">`).join("");
+}
+$("aiReadBtn").addEventListener("click", async () => {
+  const file = $("aiFile").files[0]; if (!file) return toast("Choose the invoice scan or PDF first.", true);
+  const btn = $("aiReadBtn"); btn.disabled = true;
+  aiStatus("Uploading…");
+  const inv = await createInvoice({ file, vendor: $("aiVendor").value.trim() || "Unknown vendor", invoice_no: null, invoice_date: null, total: null, notes: null });
+  if (!inv) { btn.disabled = false; aiStatus(""); return; }
+  $("aiFile").value = ""; $("aiVendor").value = "";
+  await readInvoice(inv);
+  btn.disabled = false;
+});
+async function readInvoice(inv) {
+  aiStatus("Reading the invoice… this usually takes 20–60 seconds.");
+  let res;
+  try { res = await callFunction(INVOICE_EXTRACT_URL, { invoice_id: inv.id }, "invoice-extract"); }
+  catch (e) {
+    aiStatus("");
+    $("aiReview").style.display = "";
+    $("aiReview").innerHTML = `<p class="hint">Couldn't read the invoice: ${esc(e.message)}<br>The file is saved under Admin → Invoices, so nothing is lost.</p>
+      <div class="btn-row"><button class="btn" id="aiRetry">Try again</button><button class="btn" id="aiDismiss">Dismiss</button></div>`;
+    $("aiRetry").addEventListener("click", () => readInvoice(inv));
+    $("aiDismiss").addEventListener("click", () => { $("aiReview").style.display = "none"; $("aiReview").innerHTML = ""; });
+    return;
+  }
+  aiStatus("");
+  const vendorGuess = (inv.vendor && inv.vendor !== "Unknown vendor") ? inv.vendor : (res.header.vendor || inv.vendor);
+  S.ai = {
+    invoice: inv,
+    header: { vendor: vendorGuess, invoice_no: res.header.invoice_no || "", invoice_date: res.header.invoice_date || "", total: res.header.total ?? "" },
+    lines: (res.lines || []).map((l) => ({ ...l, qty: Math.max(0, Math.round(Number(l.qty) || 0)), unit_cost: l.unit_cost == null ? "" : Number(l.unit_cost).toFixed(2), item_id: l.item_id || "", skip: false, remember: l.match !== "alias" })),
+    other_charges: res.other_charges || [], notes: res.notes || ""
+  };
+  renderAiReview();
+}
+function renderAiReview() {
+  const a = S.ai; if (!a) return;
+  const itemOpts = (sel) => `<option value="">— choose an item —</option>` + S.items.filter((i) => i.active || i.id === sel).map((i) => `<option value="${i.id}" ${i.id === sel ? "selected" : ""}>${esc(itemLabel(i))}${i.sku ? " · " + esc(i.sku) : ""}</option>`).join("");
+  const pill = (l) => l.match === "alias" ? `<span class="pill known">Known match</span>` : l.item_id ? `<span class="pill suggested">Suggested${l.confidence && l.confidence !== "high" ? " · " + l.confidence : ""}</span>` : `<span class="pill unmatched">Needs an item</span>`;
+  const rows = a.lines.map((l, i) => `<tr class="${l.skip ? "skipped" : ""}" data-row="${i}">
+      <td>${esc(l.description)}${l.vendor_sku ? `<div class="meta">SKU ${esc(l.vendor_sku)}</div>` : ""}${l.note ? `<div class="meta">${esc(l.note)}</div>` : ""}${l.line_total != null ? `<div class="meta">Line total ${money(l.line_total)}</div>` : ""}</td>
+      <td><input type="number" min="1" inputmode="numeric" value="${l.qty}" data-i="${i}" data-f="qty"></td>
+      <td><input type="number" min="0" step="0.01" inputmode="decimal" value="${esc(l.unit_cost)}" data-i="${i}" data-f="unit_cost"></td>
+      <td><select data-i="${i}" data-f="item_id">${itemOpts(l.item_id)}</select><div style="margin-top:4px">${pill(l)}</div></td>
+      <td><label class="check"><input type="checkbox" ${l.remember ? "checked" : ""} data-i="${i}" data-f="remember">Remember</label><br><label class="check" style="margin-top:6px"><input type="checkbox" ${l.skip ? "checked" : ""} data-i="${i}" data-f="skip">Skip line</label></td>
+    </tr>`).join("");
+  const active = a.lines.filter((l) => !l.skip);
+  const sum = active.reduce((t, l) => t + (Number(l.qty) || 0) * (Number(l.unit_cost) || 0), 0);
+  const charges = a.other_charges.length ? `<p class="hint">Not received as stock: ${a.other_charges.map((c) => `${esc(c.description)} ${money(c.amount)}`).join(", ")}.</p>` : "";
+  $("aiReview").style.display = "";
+  $("aiReview").innerHTML = `
+    <div class="row">
+      <div class="field"><label for="aiHVendor">Vendor</label><input id="aiHVendor" list="vendorList" value="${esc(a.header.vendor)}"></div>
+      <div class="field narrow"><label for="aiHNo">Invoice no.</label><input id="aiHNo" value="${esc(a.header.invoice_no)}"></div>
+      <div class="field narrow"><label for="aiHDate">Invoice date</label><input id="aiHDate" type="date" value="${esc(a.header.invoice_date)}"></div>
+      <div class="field narrow"><label for="aiHTotal">Invoice total</label><input id="aiHTotal" type="number" min="0" step="0.01" inputmode="decimal" value="${a.header.total === "" || a.header.total == null ? "" : Number(a.header.total).toFixed(2)}"></div>
+    </div>
+    ${a.notes ? `<p class="hint">${esc(a.notes)}</p>` : ""}
+    <div class="table-wrap"><table class="review"><thead><tr><th>Invoice line</th><th>Qty</th><th>Unit cost</th><th>Our item</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="empty">No product lines were found on this document.</td></tr>`}</tbody></table></div>
+    ${charges}
+    <p class="hint">${active.length} line${active.length === 1 ? "" : "s"} to receive · product total ${money(sum)}${a.header.total !== "" && a.header.total != null ? ` · invoice total ${money(a.header.total)}` : ""}. "Remember" saves the item you chose as the match for that vendor line next time.</p>
+    <div class="btn-row"><button class="btn primary big" id="aiConfirm" ${active.length ? "" : "disabled"}>Add ${active.length} line${active.length === 1 ? "" : "s"} to inventory</button><button class="btn" id="aiCancel">Cancel</button></div>`;
+  $("aiConfirm").addEventListener("click", confirmAiReceive);
+  $("aiCancel").addEventListener("click", () => { if (confirm("Discard this review? The invoice file stays saved under Admin → Invoices.")) { S.ai = null; $("aiReview").style.display = "none"; $("aiReview").innerHTML = ""; } });
+}
+$("aiReview").addEventListener("change", (e) => {
+  const el = e.target.closest("[data-i]"); if (!el || !S.ai) return;
+  const l = S.ai.lines[Number(el.dataset.i)], f = el.dataset.f;
+  if (f === "skip" || f === "remember") l[f] = el.checked;
+  else if (f === "item_id") { l.item_id = el.value; if (l.match === "alias" || !l.remember) l.remember = !!el.value; if (l.match === "alias") l.match = "changed"; }
+  else l[f] = el.value;
+  if (f !== "qty" && f !== "unit_cost") { syncAiHeader(); renderAiReview(); }
+});
+$("aiReview").addEventListener("input", (e) => {
+  const el = e.target.closest("[data-i]"); if (!el || !S.ai) return;
+  const f = el.dataset.f; if (f === "qty" || f === "unit_cost") S.ai.lines[Number(el.dataset.i)][f] = el.value;
+});
+function syncAiHeader() {
+  if (!S.ai || !$("aiHVendor")) return;
+  S.ai.header = { vendor: $("aiHVendor").value, invoice_no: $("aiHNo").value, invoice_date: $("aiHDate").value, total: $("aiHTotal").value };
+}
+async function confirmAiReceive() {
+  syncAiHeader();
+  const a = S.ai, lines = a.lines.filter((l) => !l.skip);
+  const vendor = a.header.vendor.trim(); if (!vendor) return toast("Enter the vendor's name.", true);
+  for (let i = 0; i < a.lines.length; i++) {
+    const l = a.lines[i]; if (l.skip) continue;
+    const qty = parseInt(l.qty), cost = String(l.unit_cost).trim() === "" ? null : Number(l.unit_cost);
+    if (!l.item_id) return toast(`Line ${i + 1} needs an item (or tick Skip line).`, true);
+    if (!qty || qty < 1) return toast(`Line ${i + 1} needs a quantity of 1 or more.`, true);
+    if (cost !== null && (isNaN(cost) || cost < 0)) return toast(`Line ${i + 1}: unit cost must be a number.`, true);
+  }
+  const btn = $("aiConfirm"); btn.disabled = true;
+  const totalRaw = String(a.header.total ?? "").trim();
+  const hdr = { vendor, invoice_no: a.header.invoice_no.trim() || null, invoice_date: a.header.invoice_date || null, total: totalRaw === "" ? null : Number(totalRaw) };
+  const up = await sb.from("invoices").update(hdr).eq("id", a.invoice.id);
+  if (up.error) { btn.disabled = false; return fail(up.error, "Couldn't save the invoice details"); }
+  const rows = lines.map((l) => ({ type: "receive", item_id: l.item_id, qty_change: parseInt(l.qty), unit_cost: String(l.unit_cost).trim() === "" ? null : Number(l.unit_cost), performed_by: S.session.user.id, invoice_id: a.invoice.id, notes: `Invoice line: ${l.description}`.slice(0, 200) }));
+  const ins = await sb.from("transactions").insert(rows);
+  if (ins.error) { btn.disabled = false; return fail(ins.error, "Couldn't add the stock"); }
+  const aliasRows = lines.filter((l) => l.remember && l.item_id).map((l) => ({
+    vendor, vendor_key: normKey(vendor), vendor_sku: l.vendor_sku || null, description: l.description || null,
+    alias_key: normKey(l.vendor_sku) || normKey(l.description), item_id: l.item_id, created_by: S.session.user.id, updated_at: new Date().toISOString()
+  })).filter((r) => r.alias_key);
+  const seen = new Set(); const uniq = aliasRows.filter((r) => !seen.has(r.alias_key) && seen.add(r.alias_key));
+  if (uniq.length) { const al = await sb.from("vendor_aliases").upsert(uniq, { onConflict: "vendor_key,alias_key" }); if (al.error) console.warn("Couldn't save vendor matches", al.error); }
+  const n = rows.reduce((t, r) => t + r.qty_change, 0);
+  toast(`Received ${n} unit${n === 1 ? "" : "s"} on ${rows.length} line${rows.length === 1 ? "" : "s"} from ${vendor}`);
+  S.ai = null; $("aiReview").style.display = "none"; $("aiReview").innerHTML = "";
+  await loadRefs(); window.scrollTo(0, 0);
+}
+async function loadAliases() {
+  if (!isAdmin()) return;
+  const { data, error } = await sb.from("vendor_aliases").select("*, item:items(name,size,sku)").order("vendor").order("alias_key");
+  if (error) return fail(error, "Couldn't load vendor matches");
+  S.aliases = data || []; renderAliases(); renderVendorList();
+}
+function renderAliases() {
+  const tb = $("aliasTable").querySelector("tbody");
+  tb.innerHTML = S.aliases.length ? S.aliases.map((a) => `<tr><td>${esc(a.vendor)}</td><td>${a.vendor_sku ? `SKU ${esc(a.vendor_sku)}` : ""}${a.vendor_sku && a.description ? `<div class="meta">${esc(a.description)}</div>` : esc(a.description || "")}</td><td>${esc(a.item ? itemLabel(a.item) : "")}</td><td class="num">${a.uses}</td><td class="actions"><button class="btn small danger" data-adelete="${a.id}">Delete</button></td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty">No matches saved yet. They appear after you receive from an invoice.</td></tr>`;
+}
+$("aliasTable").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-adelete]"); if (!b) return;
+  const a = S.aliases.find((x) => x.id === b.dataset.adelete);
+  if (!confirm(`Forget that "${a.vendor_sku || a.description}" from ${a.vendor} is ${a.item ? itemLabel(a.item) : "this item"}?`)) return;
+  const { error } = await sb.from("vendor_aliases").delete().eq("id", a.id);
+  if (error) return fail(error, "Couldn't delete the match");
+  toast("Match removed"); await loadAliases();
+});
+
+/* =========================================================
    VENDOR INVOICES (admin only)
    ========================================================= */
 const INVOICE_BUCKET = "apparel-invoices";
@@ -790,7 +968,7 @@ async function loadInvoices() {
   const { data, error } = await sb.from("invoices").select("*, lines:transactions(count)").order("invoice_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
   if (error) return fail(error, "Couldn't load invoices");
   S.invoices = (data || []).map((v) => ({ ...v, line_count: v.lines?.[0]?.count ?? 0 }));
-  renderInvoices(); renderInvoiceSelect();
+  renderInvoices(); renderInvoiceSelect(); renderVendorList();
 }
 function renderInvoiceSelect() {
   const sel = $("rcvInvoice"), cur = sel.value;
@@ -833,16 +1011,16 @@ $("addInvBtn").addEventListener("click", async () => {
   btn.disabled = false; if (!inv) return;
   ["invFile", "invVendor", "invNo", "invDate", "invTotal", "invNotes"].forEach((k) => ($(k).value = ""));
 });
-$("invSearch").addEventListener("input", renderInvoices);
+$("invoicesSearch").addEventListener("input", renderInvoices);
 function renderInvoices() {
-  const q = $("invSearch").value.trim().toLowerCase();
+  const q = $("invoicesSearch").value.trim().toLowerCase();
   const byName = (uid) => (S.users.find((u) => u.user_id === uid) || {}).display_name || (uid === S.session.user.id ? (S.me.display_name || "you") : "—");
   const rows = S.invoices.filter((v) => !q || `${v.vendor} ${v.invoice_no || ""} ${v.notes || ""} ${v.file_name}`.toLowerCase().includes(q));
-  const tb = $("invTable").querySelector("tbody");
+  const tb = $("invoicesTable").querySelector("tbody");
   tb.innerHTML = rows.length ? rows.map((v) => `<tr><td>${esc(fmtDate(v.invoice_date))}</td><td>${esc(v.vendor)}</td><td>${esc(v.invoice_no || "")}</td><td class="num">${v.total == null ? "" : money(v.total)}</td><td class="num">${v.line_count}</td><td>${esc(byName(v.uploaded_by))}</td><td class="actions"><button class="btn small" data-iopen="${v.id}">Open</button><button class="btn small" data-iedit="${v.id}">Edit</button><button class="btn small danger" data-idelete="${v.id}">Delete</button></td></tr>`).join("")
     : `<tr><td colspan="7" class="empty">${S.invoices.length ? "No matches." : "No invoices yet."}</td></tr>`;
 }
-$("invTable").addEventListener("click", async (e) => {
+$("invoicesTable").addEventListener("click", async (e) => {
   const op = e.target.closest("[data-iopen]"), ed = e.target.closest("[data-iedit]"), dl = e.target.closest("[data-idelete]");
   if (op) return openInvoice(op.dataset.iopen);
   if (dl) {

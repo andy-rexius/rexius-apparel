@@ -8,3 +8,8 @@ project_id = "rexius-apparel"
 # verification lets the browser's CORS preflight (which carries no
 # Authorization header) reach the function.
 verify_jwt = false
+
+[functions.invoice-extract]
+# Same arrangement as admin-users: the function verifies the caller's JWT
+# itself and requires an active admin. Needs the ANTHROPIC_API_KEY secret.
+verify_jwt = false
