@@ -5,6 +5,7 @@ Internal app for issuing branded high-vis apparel, tracking inventory, and gener
 ## Files
 
 - `index.html` — the whole app. The Supabase URL and anon key are set at the top of the `<script>` block.
+- `assets/` — Rexius logo files referenced by `index.html` (full-colour logo on the login screen, white wordmark in the top bar, leaf mark for the favicon, home-screen icon and login backdrop). Deploy this folder alongside `index.html`.
 - `supabase/migrations/20261027170000_move_to_apparel_schema.sql` — **current layout**: everything lives in its own `apparel` schema (`apparel.items`, `apparel.transactions`, …). Run once after an admin has exposed the `apparel` schema under Project Settings → Data API. Older scripts are kept in `sql_history/` for reference only.
 - `supabase/migrations/20261027120000_apparel_rls.sql` — (historical, `public` schema) the row-level security: locks every apparel table to members of `app_users` (the Supabase project is shared with another app) and adds the helper functions the user-management function needs. Supersedes the RLS section of `apparel_schema_public.sql`; safe to re-run.
 - `supabase/functions/admin-users/index.ts` — Edge Function that lets admins create logins, change roles, reset passwords and deactivate/reactivate apparel users without the service-role key ever reaching the browser.

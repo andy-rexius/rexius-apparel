@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-c", "import functools,http.server,os,sys;d=os.path.dirname(os.path.abspath(sys.argv[1]));http.server.ThreadingHTTPServer(('127.0.0.1',8765),functools.partial(http.server.SimpleHTTPRequestHandler,directory=d)).serve_forever()", "./index.html"],
+      "port": 8765
+    }
+  ]
+}
