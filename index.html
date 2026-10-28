@@ -115,6 +115,9 @@ main { flex: 1; padding: 18px 16px calc(28px + env(safe-area-inset-bottom, 0px))
 .btn.big { font-size: 20px; min-height: 64px; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.nested { border: 1.5px solid var(--line); border-radius: var(--radius); padding: 12px 12px 0; margin-bottom: 12px; background: #FAFBFA; }
+.field input[type=file] { padding: 8px; }
+.linkish { background: none; border: 0; padding: 0; color: var(--green-deep); font-weight: 600; text-decoration: underline; cursor: pointer; font-size: inherit; }
 
 /* tables */
 .table-wrap { overflow-x: auto; }
@@ -235,7 +238,7 @@ tr.low td { background: var(--orange-soft); }
 <!-- ============================ LOGIN ============================ -->
 <div id="loginView" class="login-wrap">
   <div class="login">
-    <div class="brand"><img class="login-logo" src="assets/rexius-logo.webp" alt="Rexius" width="2000" height="391"><h1>Apparel</h1><p class="sub">High-vis issue and inventory</p></div>
+    <div class="brand"><img class="login-logo" src="assets/rexius-logo.webp" alt="Rexius" width="2000" height="391"><h1>Apparel</h1><p class="sub">High-vis inventory and accounting</p></div>
     <div class="panel">
       <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username" inputmode="email"></div>
       <div class="field"><label for="loginPass">Password</label><input id="loginPass" type="password" autocomplete="current-password"></div>
@@ -288,7 +291,7 @@ tr.low td { background: var(--orange-soft); }
 
       <div class="panel">
         <h3>Who is this for?</h3>
-        <div class="field"><label for="empSearch">Employee</label><input id="empSearch" placeholder="Start typing a name or employee number" autocomplete="off"></div>
+        <div class="field"><label for="empSearch">Employee</label><input id="empSearch" placeholder="Start typing a name" autocomplete="off"></div>
         <div class="picklist" id="empList" style="display:none"></div>
         <div id="empChosen" class="hint" style="margin:-6px 0 12px"></div>
         <div class="field"><label for="deptSelect">Charge to department</label><select id="deptSelect"></select></div>
@@ -311,6 +314,18 @@ tr.low td { background: var(--orange-soft); }
         </div>
         <p class="hint">The unit cost becomes the item's current cost and is used for future chargebacks. Leave it blank to keep the existing cost.</p>
         <div class="field"><label for="rcvNotes">Notes (optional)</label><input id="rcvNotes" placeholder="PO number, vendor, etc."></div>
+        <div class="field"><label for="rcvInvoice">Vendor invoice (optional)</label>
+          <select id="rcvInvoice"><option value="">No invoice</option><option value="__new">Attach a new invoice…</option></select></div>
+        <div class="nested" id="rcvNewInvoice" style="display:none">
+          <div class="field"><label for="rcvInvFile">Scan or PDF</label><input id="rcvInvFile" type="file" accept="application/pdf,image/*"></div>
+          <div class="row">
+            <div class="field"><label for="rcvInvVendor">Vendor</label><input id="rcvInvVendor"></div>
+            <div class="field narrow"><label for="rcvInvNo">Invoice no.</label><input id="rcvInvNo"></div>
+            <div class="field narrow"><label for="rcvInvDate">Invoice date</label><input id="rcvInvDate" type="date"></div>
+            <div class="field narrow"><label for="rcvInvTotal">Total</label><input id="rcvInvTotal" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          </div>
+          <p class="hint" style="margin-bottom:12px">Saved once with this line and kept selected, so the rest of the invoice's lines can be received against it.</p>
+        </div>
         <button class="btn primary big block" id="confirmReceiveBtn" disabled>Add to inventory</button>
       </div>
     </section>
@@ -356,6 +371,7 @@ tr.low td { background: var(--orange-soft); }
         <button data-sub="labels">Print labels</button>
         <button data-sub="departments">Departments</button>
         <button data-sub="employees">Employees</button>
+        <button data-sub="invoices">Invoices</button>
         <button data-sub="users">Users</button>
       </div>
 
@@ -390,14 +406,33 @@ tr.low td { background: var(--orange-soft); }
           <h3>Add an employee</h3>
           <div class="row">
             <div class="field"><label for="empName">Full name</label><input id="empName"></div>
-            <div class="field narrow"><label for="empNo">Employee no.</label><input id="empNo"></div>
             <div class="field"><label for="empDept">Home department</label><select id="empDept"></select></div>
             <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn primary" id="addEmpBtn">Add employee</button></div>
           </div>
         </div>
         <div class="panel quiet">
           <div class="field"><label for="empAdminSearch">Search</label><input id="empAdminSearch" autocomplete="off"></div>
-          <div class="table-wrap"><table id="empTable"><thead><tr><th>Name</th><th>Employee no.</th><th>Department</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap"><table id="empTable"><thead><tr><th>Name</th><th>Department</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="subview" id="sub-invoices">
+        <div class="panel">
+          <h3>Add an invoice</h3>
+          <p class="hint">A central place for the clothing vendor's invoices. Invoices attached while receiving stock show up here too.</p>
+          <div class="field"><label for="invFile">Scan or PDF</label><input id="invFile" type="file" accept="application/pdf,image/*"></div>
+          <div class="row">
+            <div class="field"><label for="invVendor">Vendor</label><input id="invVendor"></div>
+            <div class="field narrow"><label for="invNo">Invoice no.</label><input id="invNo"></div>
+            <div class="field narrow"><label for="invDate">Invoice date</label><input id="invDate" type="date"></div>
+            <div class="field narrow"><label for="invTotal">Total</label><input id="invTotal" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          </div>
+          <div class="field"><label for="invNotes">Notes (optional)</label><input id="invNotes"></div>
+          <button class="btn primary" id="addInvBtn">Save invoice</button>
+        </div>
+        <div class="panel quiet">
+          <div class="field"><label for="invSearch">Search</label><input id="invSearch" placeholder="Vendor, invoice number or notes" autocomplete="off"></div>
+          <div class="table-wrap"><table id="invTable"><thead><tr><th>Date</th><th>Vendor</th><th>Invoice no.</th><th class="num">Total</th><th class="num">Lines received</th><th>Added by</th><th></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
 
@@ -414,7 +449,7 @@ tr.low td { background: var(--orange-soft); }
             <div class="field"><label for="userPass">Temporary password</label><div class="pw-row"><input id="userPass" type="text" autocomplete="off" spellcheck="false" placeholder="At least 8 characters"><button class="btn small" type="button" id="genPassBtn">Generate</button></div></div>
             <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="btn primary" id="addUserBtn">Add user</button></div>
           </div>
-          <p class="hint">Checkout users can scan items out to employees (adding a new employee on the spot if needed) and see what's in stock. Admins can also receive stock, adjust counts, undo transactions, run reports and manage items, departments, employees and users.</p>
+          <p class="hint">Checkout users can scan items out to employees (adding a new employee on the spot if needed) and see what's in stock. Admins can also receive stock, adjust counts, undo transactions, run reports and manage items, departments, employees, vendor invoices and users.</p>
         </div>
         <div class="panel quiet">
           <div class="view-head" style="margin-bottom:8px"><h3>App users</h3><button class="btn small" id="refreshUsersBtn">Refresh</button></div>
@@ -445,7 +480,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema
    ========================================================= */
 const S = {
   session: null, me: null, role: null,
-  items: [], inventory: [], departments: [], employees: [], users: [], adminUsers: [],
+  items: [], inventory: [], departments: [], employees: [], users: [], adminUsers: [], invoices: [],
   cart: [], cartEmployee: null, rcvItem: null, scanner: null, lastScan: { code: null, t: 0 },
   report: null
 };
@@ -518,7 +553,7 @@ async function loadRefs() {
   S.items = it.data; S.inventory = inv.data; S.departments = dp.data; S.employees = em.data;
   await loadUserNames();
   renderDeptSelects(); renderInventory(); updateLowBadge(); renderCart();
-  if (isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); }
+  if (isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); await loadInvoices(); }
 }
 async function refreshInventory() {
   const { data, error } = await sb.from("inventory").select("*").order("name").order("size");
@@ -543,7 +578,7 @@ async function showView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "inventory") { await refreshInventory(); loadActivity(); }
   if (name === "reports") { populateReportDepts(); if (!$("repFrom").value) setRange("month"); }
-  if (name === "admin" && isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); loadUsers(); }
+  if (name === "admin" && isAdmin()) { renderAdminItems(); renderDepts(); renderEmployees(); renderLabelPicker(); loadUsers(); loadInvoices(); }
   window.scrollTo(0, 0);
 }
 $("adminNav").addEventListener("click", (e) => {
@@ -645,14 +680,14 @@ $("cartLines").addEventListener("change", (e) => {
 // employee picker
 function filterEmployees(q) {
   q = q.trim().toLowerCase();
-  return S.employees.filter((e) => e.active && (!q || `${e.full_name} ${e.employee_no || ""}`.toLowerCase().includes(q)));
+  return S.employees.filter((e) => e.active && (!q || e.full_name.toLowerCase().includes(q)));
 }
 $("empSearch").addEventListener("input", (e) => {
   const list = filterEmployees(e.target.value).slice(0, 40);
   const el = $("empList"); el.style.display = ""; el.innerHTML = list.length ? "" : `<div class="empty">No matching employees.</div>`;
   list.forEach((emp) => {
     const b = document.createElement("button"); b.type = "button";
-    b.innerHTML = `<div>${esc(emp.full_name)}</div><div class="meta">${esc(emp.employee_no || "")}${emp.department ? " · " + esc(emp.department.name) : ""}</div>`;
+    b.innerHTML = `<div>${esc(emp.full_name)}</div><div class="meta">${emp.department ? esc(emp.department.name) : ""}</div>`;
     b.addEventListener("click", () => chooseEmployee(emp)); el.appendChild(b);
   });
   const q = e.target.value.trim();
@@ -666,16 +701,15 @@ function openQuickAddEmployee(name) {
   const deptOpts = S.departments.filter((d) => d.active).map((d) => `<option value="${d.id}" ${d.id === $("deptSelect").value ? "selected" : ""}>${esc(d.name)}</option>`).join("");
   openModal(`<h2>New employee</h2><p class="hint">Check the list first — if they're already in it under a slightly different name, pick that instead so their history stays in one place.</p>
     <div class="field"><label for="qName">Full name</label><input id="qName" value="${esc(name)}"></div>
-    <div class="field"><label for="qNo">Employee no.</label><input id="qNo" placeholder="Required" inputmode="numeric"></div>
     <div class="field"><label for="qDept">Home department</label><select id="qDept"><option value="">Choose</option>${deptOpts}</select></div>
     <div class="btn-row"><button class="btn primary" id="qSave">Add and select</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
-  $("qNo").focus();
+  $("qName").focus();
   $("qSave").addEventListener("click", async () => {
-    const full_name = $("qName").value.trim(), employee_no = $("qNo").value.trim(), department_id = $("qDept").value || null;
-    if (!full_name || !employee_no) return toast("Name and employee number are both required.", true);
-    const dupe = S.employees.find((x) => x.employee_no && x.employee_no.toLowerCase() === employee_no.toLowerCase());
-    if (dupe) { closeModal(); chooseEmployee(dupe); return toast(`#${employee_no} is already ${dupe.full_name} — selected them.`); }
-    const { data, error } = await sb.from("employees").insert({ full_name, employee_no, department_id }).select("*, department:departments(name)").single();
+    const full_name = $("qName").value.trim(), department_id = $("qDept").value || null;
+    if (!full_name) return toast("A name is required.", true);
+    const dupe = S.employees.find((x) => x.full_name.trim().toLowerCase() === full_name.toLowerCase());
+    if (dupe) { closeModal(); chooseEmployee(dupe); return toast(`${dupe.full_name} is already in the list — selected them.`); }
+    const { data, error } = await sb.from("employees").insert({ full_name, department_id }).select("*, department:departments(name)").single();
     if (error) return fail(error, error.code === "42501" ? "Adding employees isn't enabled yet (run the policy SQL)" : "Couldn't add employee");
     S.employees.push(data); S.employees.sort((a, b) => a.full_name.localeCompare(b.full_name));
     closeModal(); chooseEmployee(data); toast(`Added ${full_name}`);
@@ -685,7 +719,7 @@ function openQuickAddEmployee(name) {
 function chooseEmployee(emp) {
   S.cartEmployee = emp;
   $("empSearch").value = emp.full_name; $("empList").style.display = "none";
-  $("empChosen").textContent = `Selected: ${emp.full_name}${emp.employee_no ? " (#" + emp.employee_no + ")" : ""}`;
+  $("empChosen").textContent = `Selected: ${emp.full_name}${emp.department ? " · " + emp.department.name : ""}`;
   if (emp.department_id) $("deptSelect").value = emp.department_id;
   renderCart();
 }
@@ -728,12 +762,118 @@ $("confirmReceiveBtn").addEventListener("click", async () => {
   const costRaw = $("rcvCost").value.trim(); const cost = costRaw === "" ? null : Number(costRaw);
   if (cost !== null && (isNaN(cost) || cost < 0)) return toast("Unit cost must be a number.", true);
   const btn = $("confirmReceiveBtn"); btn.disabled = true;
-  const { error } = await sb.from("transactions").insert({ type: "receive", item_id: S.rcvItem.id, qty_change: qty, unit_cost: cost, performed_by: S.session.user.id, notes: $("rcvNotes").value.trim() || null });
+  let invoice_id = $("rcvInvoice").value || null;
+  if (invoice_id === "__new") {
+    const inv = await createInvoice({ file: $("rcvInvFile").files[0], vendor: $("rcvInvVendor").value, invoice_no: $("rcvInvNo").value, invoice_date: $("rcvInvDate").value, total: $("rcvInvTotal").value, notes: null });
+    if (!inv) { btn.disabled = false; return; }
+    invoice_id = inv.id;
+    $("rcvInvFile").value = ""; $("rcvInvVendor").value = ""; $("rcvInvNo").value = ""; $("rcvInvDate").value = ""; $("rcvInvTotal").value = "";
+  }
+  const { error } = await sb.from("transactions").insert({ type: "receive", item_id: S.rcvItem.id, qty_change: qty, unit_cost: cost, performed_by: S.session.user.id, notes: $("rcvNotes").value.trim() || null, invoice_id });
   btn.disabled = false;
   if (error) return fail(error, "Couldn't add stock");
   toast(`Added ${qty} × ${itemLabel(S.rcvItem)}`);
   $("rcvQty").value = 1; $("rcvNotes").value = ""; $("rcvSearch").value = ""; $("rcvChosen").textContent = ""; $("rcvCost").value = ""; S.rcvItem = null; btn.disabled = true;
   await loadRefs();   // unit cost may have changed
+  $("rcvInvoice").value = invoice_id || ""; $("rcvNewInvoice").style.display = "none";   // keep the invoice selected for the next line
+});
+$("rcvInvoice").addEventListener("change", () => { $("rcvNewInvoice").style.display = $("rcvInvoice").value === "__new" ? "" : "none"; });
+
+/* =========================================================
+   VENDOR INVOICES (admin only)
+   ========================================================= */
+const INVOICE_BUCKET = "apparel-invoices";
+const invoiceLabel = (v) => `${v.vendor}${v.invoice_no ? " #" + v.invoice_no : ""}${v.invoice_date ? " · " + fmtDate(v.invoice_date) : ""}`;
+const fmtDate = (ymd) => ymd ? new Date(ymd + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+async function loadInvoices() {
+  if (!isAdmin()) return;
+  const { data, error } = await sb.from("invoices").select("*, lines:transactions(count)").order("invoice_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
+  if (error) return fail(error, "Couldn't load invoices");
+  S.invoices = (data || []).map((v) => ({ ...v, line_count: v.lines?.[0]?.count ?? 0 }));
+  renderInvoices(); renderInvoiceSelect();
+}
+function renderInvoiceSelect() {
+  const sel = $("rcvInvoice"), cur = sel.value;
+  const recent = S.invoices.slice(0, 40).map((v) => `<option value="${v.id}">${esc(invoiceLabel(v))}</option>`).join("");
+  sel.innerHTML = `<option value="">No invoice</option><option value="__new">Attach a new invoice…</option>${recent}`;
+  sel.value = cur; if (sel.value !== cur) sel.value = "";
+}
+// Uploads the file, then saves the row. Returns the new row, or null after showing an error.
+async function createInvoice({ file, vendor, invoice_no, invoice_date, total, notes }) {
+  vendor = (vendor || "").trim();
+  if (!file) { toast("Choose the invoice scan or PDF first.", true); return null; }
+  if (!vendor) { toast("Enter the vendor's name.", true); return null; }
+  const totalNum = String(total ?? "").trim() === "" ? null : Number(total);
+  if (totalNum !== null && (isNaN(totalNum) || totalNum < 0)) { toast("Total must be a number.", true); return null; }
+  const id = crypto.randomUUID();
+  const safeName = (file.name || "invoice").replace(/[^\w.\-]+/g, "_").slice(-80);
+  const file_path = `${id}/${safeName}`;
+  toast("Uploading…");
+  const up = await sb.storage.from(INVOICE_BUCKET).upload(file_path, file, { contentType: file.type || undefined, upsert: false });
+  if (up.error) { fail(up.error, "Couldn't upload the file"); return null; }
+  const row = { id, vendor, invoice_no: (invoice_no || "").trim() || null, invoice_date: invoice_date || null, total: totalNum, notes: (notes || "").trim() || null,
+    file_path, file_name: file.name || safeName, content_type: file.type || null, size_bytes: file.size, uploaded_by: S.session.user.id };
+  const { data, error } = await sb.from("invoices").insert(row).select("*").single();
+  if (error) { await sb.storage.from(INVOICE_BUCKET).remove([file_path]); fail(error, "Couldn't save the invoice"); return null; }
+  toast(`Saved invoice from ${vendor}`);
+  await loadInvoices();
+  return data;
+}
+async function openInvoice(id) {
+  const v = S.invoices.find((x) => x.id === id); if (!v) return;
+  const { data, error } = await sb.storage.from(INVOICE_BUCKET).createSignedUrl(v.file_path, 600);
+  if (error) return fail(error, "Couldn't open the file");
+  // A link in a modal works on every browser (iOS Safari blocks window.open after an await).
+  openModal(`<h2>${esc(invoiceLabel(v))}</h2><p class="hint">${esc(v.file_name)}${v.size_bytes ? " · " + (v.size_bytes / 1048576).toFixed(1) + " MB" : ""}${v.notes ? "<br>" + esc(v.notes) : ""}</p>
+    <div class="btn-row"><a class="btn primary" href="${data.signedUrl}" target="_blank" rel="noopener" onclick="closeModal()">Open file</a><button class="btn" onclick="closeModal()">Close</button></div>`);
+}
+$("addInvBtn").addEventListener("click", async () => {
+  const btn = $("addInvBtn"); btn.disabled = true;
+  const inv = await createInvoice({ file: $("invFile").files[0], vendor: $("invVendor").value, invoice_no: $("invNo").value, invoice_date: $("invDate").value, total: $("invTotal").value, notes: $("invNotes").value });
+  btn.disabled = false; if (!inv) return;
+  ["invFile", "invVendor", "invNo", "invDate", "invTotal", "invNotes"].forEach((k) => ($(k).value = ""));
+});
+$("invSearch").addEventListener("input", renderInvoices);
+function renderInvoices() {
+  const q = $("invSearch").value.trim().toLowerCase();
+  const byName = (uid) => (S.users.find((u) => u.user_id === uid) || {}).display_name || (uid === S.session.user.id ? (S.me.display_name || "you") : "—");
+  const rows = S.invoices.filter((v) => !q || `${v.vendor} ${v.invoice_no || ""} ${v.notes || ""} ${v.file_name}`.toLowerCase().includes(q));
+  const tb = $("invTable").querySelector("tbody");
+  tb.innerHTML = rows.length ? rows.map((v) => `<tr><td>${esc(fmtDate(v.invoice_date))}</td><td>${esc(v.vendor)}</td><td>${esc(v.invoice_no || "")}</td><td class="num">${v.total == null ? "" : money(v.total)}</td><td class="num">${v.line_count}</td><td>${esc(byName(v.uploaded_by))}</td><td class="actions"><button class="btn small" data-iopen="${v.id}">Open</button><button class="btn small" data-iedit="${v.id}">Edit</button><button class="btn small danger" data-idelete="${v.id}">Delete</button></td></tr>`).join("")
+    : `<tr><td colspan="7" class="empty">${S.invoices.length ? "No matches." : "No invoices yet."}</td></tr>`;
+}
+$("invTable").addEventListener("click", async (e) => {
+  const op = e.target.closest("[data-iopen]"), ed = e.target.closest("[data-iedit]"), dl = e.target.closest("[data-idelete]");
+  if (op) return openInvoice(op.dataset.iopen);
+  if (dl) {
+    const v = S.invoices.find((x) => x.id === dl.dataset.idelete);
+    const warn = v.line_count ? ` It is attached to ${v.line_count} receive line${v.line_count === 1 ? "" : "s"}; those stay, just without the invoice link.` : "";
+    if (!confirm(`Delete the invoice from ${v.vendor}${v.invoice_no ? " #" + v.invoice_no : ""} and its file?${warn}`)) return;
+    const { error } = await sb.from("invoices").delete().eq("id", v.id);
+    if (error) return fail(error, "Couldn't delete the invoice");
+    const rm = await sb.storage.from(INVOICE_BUCKET).remove([v.file_path]);
+    if (rm.error) console.warn("Invoice row deleted but the file was not removed", rm.error);
+    toast("Invoice deleted"); await loadInvoices();
+  }
+  if (ed) {
+    const v = S.invoices.find((x) => x.id === ed.dataset.iedit);
+    openModal(`<h2>Edit invoice</h2><p class="hint">${esc(v.file_name)} — to change the file, delete this invoice and add it again.</p>
+      <div class="field"><label for="ieVendor">Vendor</label><input id="ieVendor" value="${esc(v.vendor)}"></div>
+      <div class="row">
+        <div class="field narrow"><label for="ieNo">Invoice no.</label><input id="ieNo" value="${esc(v.invoice_no || "")}"></div>
+        <div class="field narrow"><label for="ieDate">Invoice date</label><input id="ieDate" type="date" value="${esc(v.invoice_date || "")}"></div>
+        <div class="field narrow"><label for="ieTotal">Total</label><input id="ieTotal" type="number" min="0" step="0.01" inputmode="decimal" value="${v.total == null ? "" : Number(v.total).toFixed(2)}"></div>
+      </div>
+      <div class="field"><label for="ieNotes">Notes</label><input id="ieNotes" value="${esc(v.notes || "")}"></div>
+      <div class="btn-row"><button class="btn primary" id="ieSave">Save changes</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    $("ieSave").addEventListener("click", async () => {
+      const vendor = $("ieVendor").value.trim(); if (!vendor) return toast("Enter the vendor's name.", true);
+      const tRaw = $("ieTotal").value.trim(); const total = tRaw === "" ? null : Number(tRaw);
+      if (total !== null && (isNaN(total) || total < 0)) return toast("Total must be a number.", true);
+      const { error } = await sb.from("invoices").update({ vendor, invoice_no: $("ieNo").value.trim() || null, invoice_date: $("ieDate").value || null, total, notes: $("ieNotes").value.trim() || null }).eq("id", v.id);
+      if (error) return fail(error, "Couldn't save"); closeModal(); toast("Invoice saved"); await loadInvoices();
+    });
+  }
 });
 
 /* =========================================================
@@ -780,18 +920,20 @@ function openAdjust(id) {
 }
 
 async function loadActivity() {
-  const { data, error } = await sb.from("transactions").select("id, type, qty_change, unit_cost, notes, created_at, performed_by, item:items(name,size,sku), department:departments(name), employee:employees(full_name)").order("created_at", { ascending: false }).limit(60);
+  const { data, error } = await sb.from("transactions").select("id, type, qty_change, unit_cost, notes, created_at, performed_by, invoice_id, item:items(name,size,sku), department:departments(name), employee:employees(full_name), invoice:invoices(vendor,invoice_no)").order("created_at", { ascending: false }).limit(60);
   if (error) return fail(error, "Couldn't load activity");
   if (!S.users.length) await loadUserNames();
   const byName = (uid) => (S.users.find((u) => u.user_id === uid) || {}).display_name || (uid === S.session.user.id ? (S.me.display_name || "you") : "—");
   const tb = $("actTable").querySelector("tbody");
   tb.innerHTML = data.length ? data.map((t) => {
     const what = { checkout: "Checked out", receive: "Received", adjust: "Adjusted" }[t.type];
-    const who = t.type === "checkout" ? `${esc(t.employee?.full_name || "")}<div class="meta sub">${esc(t.department?.name || "")}</div>` : esc(t.notes || "");
+    const inv = t.invoice && isAdmin() ? `<div class="meta sub"><button class="linkish" data-inv="${t.invoice_id}">Invoice: ${esc(t.invoice.vendor)}${t.invoice.invoice_no ? " #" + esc(t.invoice.invoice_no) : ""}</button></div>` : "";
+    const who = t.type === "checkout" ? `${esc(t.employee?.full_name || "")}<div class="meta sub">${esc(t.department?.name || "")}</div>` : esc(t.notes || "") + inv;
     return `<tr><td>${fmtWhen(t.created_at)}</td><td>${what}</td><td>${esc(t.item ? itemLabel(t.item) : "")}</td><td class="num">${t.qty_change > 0 ? "+" : ""}${t.qty_change}</td><td>${who}</td><td>${esc(byName(t.performed_by))}</td><td class="actions">${isAdmin() ? `<button class="btn small danger" data-del="${t.id}">Undo</button>` : ""}</td></tr>`;
   }).join("") : `<tr><td colspan="7" class="empty">No activity yet.</td></tr>`;
 }
 $("actTable").addEventListener("click", async (e) => {
+  const iv = e.target.closest("[data-inv]"); if (iv) { if (!S.invoices.length) await loadInvoices(); return openInvoice(iv.dataset.inv); }
   const b = e.target.closest("[data-del]"); if (!b) return;
   if (!confirm("Remove this transaction? Inventory will be recalculated.")) return;
   const { error } = await sb.from("transactions").delete().eq("id", b.dataset.del);
@@ -822,7 +964,7 @@ async function runReport() {
   const from = $("repFrom").value, to = $("repTo").value;
   if (!from || !to) return toast("Choose both dates.", true);
   const start = new Date(from + "T00:00:00"), end = new Date(to + "T00:00:00"); end.setDate(end.getDate() + 1);
-  let q = sb.from("transactions").select("id, qty_change, unit_cost, notes, created_at, performed_by, item:items(name,size,sku,category), department:departments(id,name,code), employee:employees(full_name,employee_no)")
+  let q = sb.from("transactions").select("id, qty_change, unit_cost, notes, created_at, performed_by, item:items(name,size,sku,category), department:departments(id,name,code), employee:employees(full_name)")
     .eq("type", "checkout").gte("created_at", start.toISOString()).lt("created_at", end.toISOString()).order("created_at");
   if ($("repDept").value) q = q.eq("department_id", $("repDept").value);
   const { data, error } = await q;
@@ -841,7 +983,7 @@ async function runReport() {
   Object.values(groups).sort((a, b) => b.total - a.total).forEach((g) => {
     html += `<div class="group panel quiet"><div class="group-head"><h3>${esc(g.dept?.name || "No department")}${g.dept?.code ? ` <span class="sub">(${esc(g.dept.code)})</span>` : ""}</h3><span class="total">${money(g.total)}</span></div>
       <div class="table-wrap"><table><thead><tr><th>Date</th><th>Employee</th><th>Item</th><th class="num">Qty</th><th class="num">Unit cost</th><th class="num">Total</th></tr></thead><tbody>`;
-    g.rows.forEach((t) => { html += `<tr><td>${new Date(t.created_at).toLocaleDateString()}</td><td>${esc(t.employee?.full_name || "")}${t.employee?.employee_no ? ` <span class="sub">#${esc(t.employee.employee_no)}</span>` : ""}</td><td>${esc(t.item ? itemLabel(t.item) : "")}</td><td class="num">${-t.qty_change}</td><td class="num">${money(t.unit_cost)}</td><td class="num">${money(-t.qty_change * Number(t.unit_cost || 0))}</td></tr>`; });
+    g.rows.forEach((t) => { html += `<tr><td>${new Date(t.created_at).toLocaleDateString()}</td><td>${esc(t.employee?.full_name || "")}</td><td>${esc(t.item ? itemLabel(t.item) : "")}</td><td class="num">${-t.qty_change}</td><td class="num">${money(t.unit_cost)}</td><td class="num">${money(-t.qty_change * Number(t.unit_cost || 0))}</td></tr>`; });
     html += `</tbody></table></div></div>`;
   });
   out.innerHTML = html;
@@ -850,8 +992,8 @@ $("csvBtn").addEventListener("click", () => {
   if (!S.report) return;
   const byName = (uid) => (S.users.find((u) => u.user_id === uid) || {}).display_name || "";
   const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const lines = [["Date", "Department", "Dept code", "Employee", "Employee no", "Item", "Size", "SKU", "Category", "Qty", "Unit cost", "Total", "Checked out by", "Notes"].map(cell).join(",")];
-  S.report.rows.forEach((t) => lines.push([new Date(t.created_at).toLocaleDateString(), t.department?.name, t.department?.code, t.employee?.full_name, t.employee?.employee_no, t.item?.name, t.item?.size, t.item?.sku, t.item?.category, -t.qty_change, Number(t.unit_cost || 0).toFixed(2), (-t.qty_change * Number(t.unit_cost || 0)).toFixed(2), byName(t.performed_by), t.notes].map(cell).join(",")));
+  const lines = [["Date", "Department", "Dept code", "Employee", "Item", "Size", "SKU", "Category", "Qty", "Unit cost", "Total", "Checked out by", "Notes"].map(cell).join(",")];
+  S.report.rows.forEach((t) => lines.push([new Date(t.created_at).toLocaleDateString(), t.department?.name, t.department?.code, t.employee?.full_name, t.item?.name, t.item?.size, t.item?.sku, t.item?.category, -t.qty_change, Number(t.unit_cost || 0).toFixed(2), (-t.qty_change * Number(t.unit_cost || 0)).toFixed(2), byName(t.performed_by), t.notes].map(cell).join(",")));
   const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `apparel-chargebacks-${S.report.from}-to-${S.report.to}.csv`; a.click(); URL.revokeObjectURL(a.href);
 });
@@ -987,15 +1129,15 @@ $("deptTable").addEventListener("click", async (e) => {
 $("empAdminSearch").addEventListener("input", renderEmployees);
 function renderEmployees() {
   const q = $("empAdminSearch").value.trim().toLowerCase();
-  const rows = S.employees.filter((e) => !q || `${e.full_name} ${e.employee_no || ""} ${e.department?.name || ""}`.toLowerCase().includes(q));
+  const rows = S.employees.filter((e) => !q || `${e.full_name} ${e.department?.name || ""}`.toLowerCase().includes(q));
   const tb = $("empTable").querySelector("tbody");
-  tb.innerHTML = rows.length ? rows.map((e) => `<tr><td>${esc(e.full_name)}</td><td>${esc(e.employee_no || "")}</td><td>${esc(e.department?.name || "")}</td><td><span class="pill ${e.active ? "ok" : "off"}">${e.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-eedit="${e.id}">Edit</button><button class="btn small" data-etoggle="${e.id}">${e.active ? "Deactivate" : "Reactivate"}</button>${e.active ? "" : `<button class="btn small danger" data-edelete="${e.id}">Delete</button>`}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">${S.employees.length ? "No matches." : "No employees yet."}</td></tr>`;
+  tb.innerHTML = rows.length ? rows.map((e) => `<tr><td>${esc(e.full_name)}</td><td>${esc(e.department?.name || "")}</td><td><span class="pill ${e.active ? "ok" : "off"}">${e.active ? "Active" : "Inactive"}</span></td><td class="actions"><button class="btn small" data-eedit="${e.id}">Edit</button><button class="btn small" data-etoggle="${e.id}">${e.active ? "Deactivate" : "Reactivate"}</button>${e.active ? "" : `<button class="btn small danger" data-edelete="${e.id}">Delete</button>`}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">${S.employees.length ? "No matches." : "No employees yet."}</td></tr>`;
 }
 $("addEmpBtn").addEventListener("click", async () => {
   const full_name = $("empName").value.trim(); if (!full_name) return toast("Enter the employee's name.", true);
-  const { error } = await sb.from("employees").insert({ full_name, employee_no: $("empNo").value.trim() || null, department_id: $("empDept").value || null });
-  if (error) return fail(error, error.code === "23505" ? "That employee number is already in use" : "Couldn't add employee");
-  $("empName").value = ""; $("empNo").value = ""; toast("Employee added"); await loadRefs(); $("empName").focus();
+  const { error } = await sb.from("employees").insert({ full_name, department_id: $("empDept").value || null });
+  if (error) return fail(error, "Couldn't add employee");
+  $("empName").value = ""; toast("Employee added"); await loadRefs(); $("empName").focus();
 });
 $("empTable").addEventListener("click", async (e) => {
   const ed = e.target.closest("[data-eedit]"), tg = e.target.closest("[data-etoggle]"), dl = e.target.closest("[data-edelete]");
@@ -1005,11 +1147,10 @@ $("empTable").addEventListener("click", async (e) => {
     const emp = S.employees.find((x) => x.id === ed.dataset.eedit);
     openModal(`<h2>Edit employee</h2>
       <div class="field"><label for="eName">Full name</label><input id="eName" value="${esc(emp.full_name)}"></div>
-      <div class="field"><label for="eNo">Employee no.</label><input id="eNo" value="${esc(emp.employee_no || "")}"></div>
       <div class="field"><label for="eDept">Home department</label><select id="eDept"><option value="">None</option>${S.departments.filter((d) => d.active || d.id === emp.department_id).map((d) => `<option value="${d.id}" ${d.id === emp.department_id ? "selected" : ""}>${esc(d.name)}</option>`).join("")}</select></div>
       <div class="btn-row"><button class="btn primary" id="eSave">Save changes</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
     $("eSave").addEventListener("click", async () => {
-      const { error } = await sb.from("employees").update({ full_name: $("eName").value.trim(), employee_no: $("eNo").value.trim() || null, department_id: $("eDept").value || null }).eq("id", emp.id);
+      const { error } = await sb.from("employees").update({ full_name: $("eName").value.trim(), department_id: $("eDept").value || null }).eq("id", emp.id);
       if (error) return fail(error, "Couldn't save"); closeModal(); toast("Employee saved"); await loadRefs();
     });
   }
@@ -1120,7 +1261,7 @@ $("userTable").addEventListener("click", (e) => {
 function openChangeRole(u) {
   openModal(`<h2>Change role</h2><p>${esc(userLabel(u))}</p>
     <div class="field"><label for="crRole">New role</label><select id="crRole"><option value="checkout" ${u.role === "checkout" ? "selected" : ""}>Checkout</option><option value="admin" ${u.role === "admin" ? "selected" : ""}>Admin</option></select></div>
-    <p class="hint">Checkout users can only scan items out and add employees. Admins can also receive stock, adjust counts, undo transactions, run reports and manage items, departments, employees and users.</p>
+    <p class="hint">Checkout users can only scan items out and add employees. Admins can also receive stock, adjust counts, undo transactions, run reports and manage items, departments, employees, vendor invoices and users.</p>
     <div class="btn-row"><button class="btn primary" id="crSave">Save role</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
   $("crSave").addEventListener("click", async () => {
     const role = $("crRole").value; if (role === u.role) return closeModal();

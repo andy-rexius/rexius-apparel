@@ -7,13 +7,15 @@ Internal app for issuing branded high-vis apparel, tracking inventory, and gener
 - `index.html` — the whole app. The Supabase URL and anon key are set at the top of the `<script>` block.
 - `assets/` — Rexius logo files referenced by `index.html` (full-colour logo on the login screen, white wordmark in the top bar, leaf mark for the favicon, home-screen icon and login backdrop). Deploy this folder alongside `index.html`.
 - `supabase/migrations/20261027170000_move_to_apparel_schema.sql` — **current layout**: everything lives in its own `apparel` schema (`apparel.items`, `apparel.transactions`, …). Run once after an admin has exposed the `apparel` schema under Project Settings → Data API. Older scripts are kept in `sql_history/` for reference only.
+- `supabase/migrations/20261027190000_vendor_invoices.sql` — vendor invoices: creates the private `apparel-invoices` Storage bucket (25 MB per file, PDF/JPEG/PNG/HEIC/WebP), the `apparel.invoices` table and the `invoice_id` link on receive transactions, all admin-only. Run once, the same way.
+- `supabase/migrations/20261027180000_drop_employee_no.sql` — drops the employee-number column; people are identified by name and home department only. Run once, the same way, on a project that was set up before it existed.
 - `supabase/migrations/20261027120000_apparel_rls.sql` — (historical, `public` schema) the row-level security: locks every apparel table to members of `app_users` (the Supabase project is shared with another app) and adds the helper functions the user-management function needs. Supersedes the RLS section of `apparel_schema_public.sql`; safe to re-run.
 - `supabase/functions/admin-users/index.ts` — Edge Function that lets admins create logins, change roles, reset passwords and deactivate/reactivate apparel users without the service-role key ever reaching the browser.
 - `supabase/config.toml` — Supabase CLI config (turns off gateway JWT checks for `admin-users`, which verifies the token itself).
 
 ## Supabase setup (one time)
 
-1. SQL Editor → run `sql_history/apparel_schema_public.sql`, then the three files in `supabase/migrations/` in date order. (An existing project that is already on the `apparel` schema needs none of this.)
+1. SQL Editor → run `sql_history/apparel_schema_public.sql`, then the files in `supabase/migrations/` in date order. (An existing project that is already on the `apparel` schema needs none of this.)
 2. Nothing to expose: the tables live in `public`, which is already available to the API.
 3. Authentication → Users → add your own login (email + password).
 4. SQL Editor → make yourself the first admin (by email, no UUID needed):
@@ -88,9 +90,13 @@ In the app, Admin tab:
 
 1. **Departments** — add each department that gets charged back.
 2. **Items** — use "Add one item per size" for each product (e.g. name "Hi-Vis Class 2 Vest", prefix `HV-VEST-C2`, sizes `S, M, L, XL, 2XL, 3XL`). Set the unit cost and reorder threshold.
-3. **Employees** — add names, employee numbers and home departments.
+3. **Employees** — add names and home departments.
 4. **Print labels** — print a QR label for each item (Avery 5160, 30 per sheet, print at 100% with no scaling).
 5. **Receive** tab — enter your current stock on hand for each item so the counts start accurate.
+
+## Vendor invoices
+
+Admins can keep the clothing vendor's invoices in the app. On the **Receive** tab, pick *Attach a new invoice…* to upload the scan or PDF with the first line of an order; the invoice stays selected so the rest of the order's lines can be received against it, and later lines can pick any recent invoice from the same list. **Admin → Invoices** lists every invoice (searchable by vendor, number or notes) with how many receive lines it covers, and lets you open the file, fix the details, or add an invoice that isn't tied to a receipt. Files live in a private Storage bucket and open through short-lived links, so only admins can see them. Phone users can take a photo of the paper invoice straight from the file picker.
 
 ## Day to day
 
