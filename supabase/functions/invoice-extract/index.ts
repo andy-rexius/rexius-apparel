@@ -47,7 +47,7 @@ const MODEL = "claude-opus-5-5";
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 const ALLOWED_ORIGINS = new Set<string>([
-  "https://andy-rexius.github.io",
+  "https://rexiusfleet.github.io",
   ...(Deno.env.get("APPAREL_EXTRA_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
 ]);
 

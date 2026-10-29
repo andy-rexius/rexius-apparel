@@ -40,7 +40,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 // testing) can be added as a comma-separated list in the optional
 // APPAREL_EXTRA_ORIGINS secret, e.g. "http://localhost:5500,http://127.0.0.1:5500".
 const ALLOWED_ORIGINS = new Set<string>([
-  "https://andy-rexius.github.io",
+  "https://rexiusfleet.github.io",
   ...(Deno.env.get("APPAREL_EXTRA_ORIGINS") ?? "")
     .split(",")
     .map((s) => s.trim())
