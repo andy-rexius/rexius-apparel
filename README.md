@@ -2,6 +2,14 @@
 
 Internal app for issuing branded high-vis apparel, tracking inventory, and generating department chargeback reports. Single HTML file on GitHub Pages, data in Supabase.
 
+## Where it lives
+
+- **Repository:** https://github.com/RexiusFleet/rexius-apparel (the Rexius company GitHub account). It was moved here from the personal `andy-rexius` account on 2026-10-29; the old address redirects, but use the new one.
+- **Live app:** https://rexiusfleet.github.io/rexius-apparel/ — served by GitHub Pages from the `main` branch, so every push to `main` goes live within a minute or two.
+- **Supabase project:** `hibjqcgitqtgmkurghlw` ("AM Projects"), shared with another app. Do not change the project-wide Auth Site URL for this app; it only signs in with email and password and never sends auth emails.
+
+If the repository ever moves again, update the `ALLOWED_ORIGINS` list in both Edge Functions (`supabase/functions/admin-users/index.ts` and `supabase/functions/invoice-extract/index.ts`) to the new `*.github.io` origin and redeploy them, or the browser will be blocked by CORS.
+
 ## Files
 
 - `index.html` — the whole app. The Supabase URL and anon key are set at the top of the `<script>` block.
@@ -78,10 +86,15 @@ Admin → **Users**:
 
 ## Deploy to GitHub Pages
 
-1. Create a new repository (private is fine — Pages still works on private repos with GitHub Pro/Team/Enterprise; otherwise use a public repo).
-2. Add `index.html` to the root of the repo and commit.
+Already set up for `RexiusFleet/rexius-apparel`: Settings → Pages → Source "Deploy from a branch", branch `main`, folder `/ (root)`. Pushing to `main` is the deploy.
+
+To stand it up somewhere new:
+
+1. Create a new repository in the `RexiusFleet` organization (private is fine — Pages still works on private repos with GitHub Pro/Team/Enterprise; otherwise use a public repo).
+2. Add `index.html` and `assets/` to the root of the repo and commit.
 3. Repo → Settings → Pages → Source: "Deploy from a branch" → branch `main`, folder `/ (root)` → Save.
-4. After a minute the site is live at `https://<org-or-user>.github.io/<repo>/`. Open it on a phone, sign in, and allow camera access when prompted.
+4. After a minute the site is live at `https://<org>.github.io/<repo>/`. Open it on a phone, sign in, and allow camera access when prompted.
+5. Add the new origin to `ALLOWED_ORIGINS` in both Edge Functions and redeploy them (see "Where it lives" above).
 
 The anon key is safe to publish: it only grants what the row-level security policies allow, and nothing is readable without an authenticated login that has an active row in `apparel.app_users`.
 
